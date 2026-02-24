@@ -1,19 +1,15 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
-import { Plus, Search, Trash2, Eye, EyeOff, Download, Copy, CheckCircle2, Clock, AlertTriangle, Star, MapPin, Phone, Globe, ChevronDown, ChevronUp, X } from 'lucide-react';
-import { getScrapingSessions, createScrapingSession, updateScrapingSession, deleteScrapingSession } from '@/lib/store';
-import { ScrapingSession, ScrapedRestaurant, ScrapingStatus } from '@/lib/types';
-import { formatDate } from '@/lib/utils';
+import { useEffect, useState, useMemo, useCallback } from 'react';
+import { Plus, Search, RefreshCw, MapPin, Star, Globe, Phone, TrendingUp, AlertTriangle } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { getScrapingSessions, createScrapingSession, updateScrapingSession } from '@/lib/store';
+import { ScrapingSession, ScrapedRestaurant, ScrapingStatus, CityAggregate } from '@/lib/types';
+import { formatPercent, getTypeEmoji } from '@/lib/utils';
+import { aggregateByCities } from '@/lib/scraping-helpers';
 import Modal from '@/components/Modal';
 
-const RESTAURANT_TYPES = ['Kebab', 'Pizza', 'Burger', 'Sushi', 'Tacos', 'Indien', 'Chinois', 'Thaï', 'Italien', 'Autre'];
-
-const statusConfig: Record<ScrapingStatus, { label: string; badge: string; icon: typeof Clock }> = {
-  'in-progress': { label: 'En cours', badge: 'badge-orange', icon: Clock },
-  'completed':   { label: 'Terminé', badge: 'badge-green', icon: CheckCircle2 },
-  'error':       { label: 'Erreur', badge: 'badge-red', icon: AlertTriangle },
-};
+const RESTAURANT_TYPES = ['Kebab', 'Pizza', 'Burger', 'Sushi', 'Tacos', 'Indien', 'Chinois', 'Thaï', 'Italien', 'Bistro', 'Japonais', 'Mexicain', 'Libanais', 'Autre'];
 
 const emptySession = {
   date: new Date().toISOString().split('T')[0],
@@ -29,115 +25,64 @@ const emptySession = {
 export default function ScrappingPage() {
   const [sessions, setSessions] = useState<ScrapingSession[]>([]);
   const [mounted, setMounted] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
-  const [editing, setEditing] = useState<ScrapingSession | null>(null);
   const [form, setForm] = useState(emptySession);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [jsonInput, setJsonInput] = useState('');
-  const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const router = useRouter();
 
-  const reload = () => setSessions(getScrapingSessions());
-  useEffect(() => { reload(); setMounted(true); }, []);
+  const reload = useCallback(async () => {
+    setLoading(true);
+    const data = await getScrapingSessions();
+    setSessions(data);
+    setLoading(false);
+  }, []);
 
-  const stats = useMemo(() => ({
-    total: sessions.length,
-    completed: sessions.filter(s => s.status === 'completed').length,
-    inProgress: sessions.filter(s => s.status === 'in-progress').length,
-    totalRestaurants: sessions.reduce((s, ses) => s + ses.totalFound, 0),
-  }), [sessions]);
+  useEffect(() => { reload().then(() => setMounted(true)); }, [reload]);
+
+  // City aggregation
+  const cityAggregates = useMemo(() => aggregateByCities(sessions), [sessions]);
+
+  // Search filter
+  const filteredCities = useMemo(() => {
+    if (!searchTerm) return cityAggregates;
+    const q = searchTerm.toLowerCase();
+    return cityAggregates.filter(c => c.city.toLowerCase().includes(q));
+  }, [cityAggregates, searchTerm]);
+
+  // Global stats
+  const globalStats = useMemo(() => {
+    const totalCities = cityAggregates.length;
+    const totalRestaurants = cityAggregates.reduce((s, c) => s + c.totalRestaurants, 0);
+    const totalOpportunities = cityAggregates.reduce((s, c) => s + c.opportunityCount, 0);
+    const totalSessions = sessions.length;
+    return { totalCities, totalRestaurants, totalOpportunities, totalSessions };
+  }, [cityAggregates, sessions]);
 
   const openCreate = () => {
-    setEditing(null);
     setForm(emptySession);
     setJsonInput('');
     setShowModal(true);
   };
 
-  const openEdit = (s: ScrapingSession) => {
-    setEditing(s);
-    setForm({
-      date: s.date,
-      task: s.task,
-      type: s.type,
-      city: s.city,
-      totalFound: s.totalFound,
-      status: s.status,
-      data: s.data,
-      notes: s.notes,
-    });
-    setJsonInput(s.data.length > 0 ? JSON.stringify(s.data, null, 2) : '');
-    setShowModal(true);
-  };
-
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!form.city || !form.type) return;
 
     let parsedData: ScrapedRestaurant[] = form.data;
     if (jsonInput.trim()) {
-      try {
-        parsedData = JSON.parse(jsonInput);
-      } catch {
-        // keep existing data if JSON is invalid
-      }
+      try { parsedData = JSON.parse(jsonInput); } catch { /* keep existing */ }
     }
 
     const task = form.task || `${form.type} scraping - ${form.city}`;
-    const payload = {
+    await createScrapingSession({
       ...form,
       task,
       data: parsedData,
       totalFound: parsedData.length > 0 ? parsedData.length : form.totalFound,
-    };
-
-    if (editing) {
-      updateScrapingSession(editing.id, payload);
-    } else {
-      createScrapingSession(payload);
-    }
-    reload();
+    });
+    await reload();
     setShowModal(false);
-  };
-
-  const handleDelete = (id: string) => {
-    deleteScrapingSession(id);
-    reload();
-    if (expandedId === id) setExpandedId(null);
-  };
-
-  const handleStatusChange = (id: string, status: ScrapingStatus) => {
-    updateScrapingSession(id, { status });
-    reload();
-  };
-
-  const exportCSV = (session: ScrapingSession) => {
-    if (session.data.length === 0) return;
-    const headers = ['#ID', 'Nom', 'Adresse', 'Ville', 'Téléphone', 'Site Web', 'Note Google', 'Nb Avis', 'Statut'];
-    const rows = session.data.map((r, i) => [
-      i + 1, r.name, r.address, r.city, r.phone, r.website, r.rating, r.reviewCount, r.status,
-    ]);
-    const csv = [headers.join(';'), ...rows.map(r => r.join(';'))].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `scraping-${session.type}-${session.city}-${session.date}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const copyJSON = (session: ScrapingSession) => {
-    navigator.clipboard.writeText(JSON.stringify(session.data, null, 2));
-    setCopyFeedback(session.id);
-    setTimeout(() => setCopyFeedback(null), 2000);
-  };
-
-  const renderStars = (rating: number) => {
-    return Array.from({ length: 5 }, (_, i) => (
-      <Star
-        key={i}
-        className={`w-3 h-3 ${i < Math.round(rating) ? 'text-orange fill-orange' : 'text-text-dim'}`}
-      />
-    ));
   };
 
   if (!mounted) return <div className="p-8 text-text-dim text-sm">Chargement...</div>;
@@ -151,230 +96,81 @@ export default function ScrappingPage() {
             <Search className="w-5 h-5 text-blue" />
             Scrapping
           </h1>
-          <p className="text-xs text-text-muted mt-0.5">Sessions de scraping restaurants</p>
+          <p className="text-xs text-text-muted mt-0.5">Ciblage commercial par ville et type de restaurant</p>
         </div>
-        <button onClick={openCreate} className="btn-primary flex items-center gap-1.5">
-          <Plus className="w-3.5 h-3.5" /> Nouvelle Session
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={reload} className="btn-secondary flex items-center gap-1.5 text-xs" disabled={loading}>
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} /> Rafraîchir
+          </button>
+          <button onClick={openCreate} className="btn-primary flex items-center gap-1.5 text-xs">
+            <Plus className="w-3.5 h-3.5" /> Nouvelle Session
+          </button>
+        </div>
       </div>
 
-      {/* Stats */}
+      {/* Global Stats */}
       <div className="grid grid-cols-4 gap-3">
-        {[
-          { label: 'Total Sessions', value: stats.total, color: 'text-text' },
-          { label: 'En Cours', value: stats.inProgress, color: 'text-orange' },
-          { label: 'Terminées', value: stats.completed, color: 'text-green' },
-          { label: 'Restaurants Trouvés', value: stats.totalRestaurants, color: 'text-blue' },
-        ].map((s, i) => (
-          <div key={i} className="glass-interactive p-4">
-            <p className="text-[10px] text-text-dim">{s.label}</p>
-            <p className={`text-lg font-bold mt-0.5 ${s.color}`}>{s.value}</p>
-          </div>
-        ))}
+        <div className="glass-interactive p-4 rounded-xl">
+          <p className="text-[10px] text-text-dim">Villes</p>
+          <p className="text-lg font-bold text-blue mt-0.5">{globalStats.totalCities}</p>
+        </div>
+        <div className="glass-interactive p-4 rounded-xl">
+          <p className="text-[10px] text-text-dim">Restaurants</p>
+          <p className="text-lg font-bold text-text mt-0.5">{globalStats.totalRestaurants}</p>
+        </div>
+        <div className="glass-interactive p-4 rounded-xl">
+          <p className="text-[10px] text-text-dim flex items-center gap-1"><TrendingUp className="w-3 h-3" /> Opportunités</p>
+          <p className="text-lg font-bold text-red mt-0.5">{globalStats.totalOpportunities}</p>
+        </div>
+        <div className="glass-interactive p-4 rounded-xl">
+          <p className="text-[10px] text-text-dim">Sessions</p>
+          <p className="text-lg font-bold text-purple mt-0.5">{globalStats.totalSessions}</p>
+        </div>
       </div>
 
-      {/* Sessions List */}
-      {sessions.length === 0 ? (
-        <div className="glass-inset p-12 text-center">
-          <Search className="w-8 h-8 text-text-dim mx-auto mb-3" />
-          <p className="text-sm text-text-muted mb-1">Aucune session de scraping</p>
-          <p className="text-xs text-text-dim">Créez votre première session pour commencer</p>
+      {/* API Info */}
+      <div className="glass-inset p-3 rounded-xl flex items-center gap-3">
+        <div className="w-2 h-2 rounded-full bg-green animate-pulse" />
+        <p className="text-[11px] text-text-muted">
+          API : <code className="text-blue bg-bg-surface px-1.5 py-0.5 rounded text-[10px]">POST https://reelcrm.vercel.app/api/scraping</code>
+        </p>
+      </div>
+
+      {/* Search */}
+      <div className="flex items-center gap-3">
+        <div className="flex-1 relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-dim" />
+          <input
+            className="lg-input w-full pl-9"
+            placeholder="Rechercher une ville..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
+        <span className="text-[11px] text-text-dim">{filteredCities.length} ville{filteredCities.length > 1 ? 's' : ''}</span>
+      </div>
+
+      {/* City Cards Grid */}
+      {filteredCities.length === 0 ? (
+        <div className="glass-inset p-12 text-center rounded-2xl">
+          <MapPin className="w-8 h-8 text-text-dim mx-auto mb-3" />
+          <p className="text-sm text-text-muted mb-1">Aucune ville trouvée</p>
+          <p className="text-xs text-text-dim">Créez une session ou utilisez l&apos;API pour ajouter des données de scraping</p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {sessions.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).map(session => {
-            const cfg = statusConfig[session.status];
-            const StatusIcon = cfg.icon;
-            const isExpanded = expandedId === session.id;
-
-            return (
-              <div key={session.id} className="glass-interactive rounded-2xl overflow-hidden">
-                {/* Session row */}
-                <div className="p-4 flex items-center gap-4">
-                  {/* Type icon */}
-                  <div
-                    className="w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0"
-                    style={{ background: 'rgba(94,158,255,0.1)', border: '1px solid rgba(94,158,255,0.15)' }}
-                  >
-                    {session.type === 'Kebab' ? '🥙' :
-                     session.type === 'Pizza' ? '🍕' :
-                     session.type === 'Burger' ? '🍔' :
-                     session.type === 'Sushi' ? '🍣' :
-                     session.type === 'Tacos' ? '🌮' :
-                     session.type === 'Indien' ? '🍛' :
-                     session.type === 'Chinois' ? '🥡' :
-                     session.type === 'Thaï' ? '🍜' :
-                     session.type === 'Italien' ? '🍝' : '🔍'}
-                  </div>
-
-                  {/* Info */}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[13px] font-semibold text-text truncate">{session.task}</p>
-                    <div className="flex items-center gap-3 mt-0.5">
-                      <span className="text-[11px] text-text-muted flex items-center gap-1">
-                        <MapPin className="w-3 h-3" /> {session.city}
-                      </span>
-                      <span className="text-[11px] text-text-dim">{formatDate(session.date)}</span>
-                    </div>
-                  </div>
-
-                  {/* Total found */}
-                  <div className="text-center flex-shrink-0">
-                    <p className="text-base font-bold text-blue">{session.totalFound}</p>
-                    <p className="text-[9px] text-text-dim">trouvés</p>
-                  </div>
-
-                  {/* Status */}
-                  <span className={`badge ${cfg.badge} flex items-center gap-1 flex-shrink-0`}>
-                    <StatusIcon className="w-3 h-3" />
-                    {cfg.label}
-                  </span>
-
-                  {/* Actions */}
-                  <div className="flex items-center gap-1 flex-shrink-0">
-                    {session.data.length > 0 && (
-                      <>
-                        <button onClick={() => exportCSV(session)} className="p-1.5 rounded-lg hover:bg-bg-surface transition-colors" title="Export CSV">
-                          <Download className="w-3.5 h-3.5 text-text-dim" />
-                        </button>
-                        <button onClick={() => copyJSON(session)} className="p-1.5 rounded-lg hover:bg-bg-surface transition-colors" title="Copier JSON">
-                          {copyFeedback === session.id ? <CheckCircle2 className="w-3.5 h-3.5 text-green" /> : <Copy className="w-3.5 h-3.5 text-text-dim" />}
-                        </button>
-                      </>
-                    )}
-                    <button onClick={() => setExpandedId(isExpanded ? null : session.id)} className="p-1.5 rounded-lg hover:bg-bg-surface transition-colors" title="Voir détails">
-                      {isExpanded ? <ChevronUp className="w-3.5 h-3.5 text-text-dim" /> : <ChevronDown className="w-3.5 h-3.5 text-text-dim" />}
-                    </button>
-                    <button onClick={() => openEdit(session)} className="p-1.5 rounded-lg hover:bg-bg-surface transition-colors" title="Modifier">
-                      <Search className="w-3.5 h-3.5 text-text-dim" />
-                    </button>
-                    <button onClick={() => handleDelete(session.id)} className="p-1.5 rounded-lg hover:bg-bg-surface transition-colors" title="Supprimer">
-                      <Trash2 className="w-3.5 h-3.5 text-red" />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Notes */}
-                {session.notes && !isExpanded && (
-                  <div className="px-4 pb-3">
-                    <p className="text-[11px] text-text-dim italic">{session.notes}</p>
-                  </div>
-                )}
-
-                {/* Expanded: Restaurant data */}
-                {isExpanded && (
-                  <div className="border-t border-border px-4 py-3 space-y-3">
-                    {/* Quick status change */}
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] text-text-dim">Statut :</span>
-                      {(['in-progress', 'completed', 'error'] as ScrapingStatus[]).map(st => (
-                        <button
-                          key={st}
-                          onClick={() => handleStatusChange(session.id, st)}
-                          className={`badge text-[10px] cursor-pointer transition-all ${session.status === st ? statusConfig[st].badge : 'badge-ghost opacity-50 hover:opacity-100'}`}
-                        >
-                          {statusConfig[st].label}
-                        </button>
-                      ))}
-                    </div>
-
-                    {session.notes && (
-                      <div className="glass-inset p-3 rounded-xl">
-                        <p className="text-[10px] text-text-dim mb-1">Notes</p>
-                        <p className="text-[12px] text-text-muted">{session.notes}</p>
-                      </div>
-                    )}
-
-                    {session.data.length > 0 ? (
-                      <div className="overflow-x-auto">
-                        <table className="w-full lg-table">
-                          <thead>
-                            <tr>
-                              <th>#</th>
-                              <th>Nom</th>
-                              <th>Adresse</th>
-                              <th>Téléphone</th>
-                              <th>Note</th>
-                              <th>Avis</th>
-                              <th>Statut</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {session.data.map((r, i) => (
-                              <tr key={r.id || i}>
-                                <td className="text-text-dim text-[11px]">{i + 1}</td>
-                                <td>
-                                  <div>
-                                    <p className="text-[12px] font-semibold text-text">{r.name}</p>
-                                    {r.website && (
-                                      <a href={r.website} target="_blank" rel="noopener noreferrer" className="text-[10px] text-blue hover:underline flex items-center gap-0.5">
-                                        <Globe className="w-2.5 h-2.5" /> Site web
-                                      </a>
-                                    )}
-                                  </div>
-                                </td>
-                                <td className="text-text-muted text-[11px]">{r.address}</td>
-                                <td>
-                                  {r.phone ? (
-                                    <a href={`tel:${r.phone}`} className="text-[11px] text-text-muted hover:text-text flex items-center gap-1">
-                                      <Phone className="w-3 h-3" /> {r.phone}
-                                    </a>
-                                  ) : <span className="text-text-dim text-[11px]">—</span>}
-                                </td>
-                                <td>
-                                  <div className="flex items-center gap-1">
-                                    <div className="flex">{renderStars(r.rating)}</div>
-                                    <span className="text-[11px] text-text-muted">{r.rating}</span>
-                                  </div>
-                                </td>
-                                <td className="text-text-muted text-[11px]">{r.reviewCount}</td>
-                                <td>
-                                  <span className={`badge text-[9px] ${r.status === 'verified' ? 'badge-green' : 'badge-ghost'}`}>
-                                    {r.status === 'verified' ? 'Vérifié' : 'En attente'}
-                                  </span>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    ) : (
-                      <div className="glass-inset p-6 text-center rounded-xl">
-                        <p className="text-[11px] text-text-dim">Aucune donnée scrapée pour cette session</p>
-                        <p className="text-[10px] text-text-dim mt-1">Modifiez la session pour ajouter des données JSON</p>
-                      </div>
-                    )}
-
-                    {/* Reviews preview for first restaurant with reviews */}
-                    {session.data.some(r => r.reviews?.length > 0) && (
-                      <div className="glass-inset p-3 rounded-xl">
-                        <p className="text-[10px] text-text-dim mb-2">Aperçu des avis</p>
-                        <div className="grid grid-cols-2 gap-2">
-                          {session.data
-                            .flatMap(r => (r.reviews || []).map(rev => ({ ...rev, restaurant: r.name })))
-                            .slice(0, 4)
-                            .map((rev, i) => (
-                              <div key={i} className="p-2 rounded-lg" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.04)' }}>
-                                <div className="flex items-center gap-1 mb-1">
-                                  <div className="flex">{renderStars(rev.rating)}</div>
-                                  <span className="text-[10px] text-text-dim ml-auto">{rev.restaurant}</span>
-                                </div>
-                                <p className="text-[10px] text-text-muted line-clamp-2">{rev.text}</p>
-                              </div>
-                            ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredCities.map(city => (
+            <CityCard
+              key={city.city}
+              city={city}
+              onClick={() => router.push(`/scrapping/ville/${encodeURIComponent(city.city)}`)}
+            />
+          ))}
         </div>
       )}
 
-      {/* Create/Edit Modal */}
-      <Modal isOpen={showModal} onClose={() => setShowModal(false)} title={editing ? 'Modifier la Session' : 'Nouvelle Session de Scraping'} size="lg">
+      {/* Create Modal */}
+      <Modal isOpen={showModal} onClose={() => setShowModal(false)} title="Nouvelle Session de Scraping" size="lg">
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -385,7 +181,7 @@ export default function ScrappingPage() {
             </div>
             <div>
               <label className="block text-[10px] text-text-dim mb-1">Ville *</label>
-              <input className="lg-input w-full" placeholder="Paris, Lyon, Marseille..." value={form.city} onChange={(e) => setForm(f => ({ ...f, city: e.target.value }))} />
+              <input className="lg-input w-full" placeholder="Paris, Lyon, Vincennes..." value={form.city} onChange={(e) => setForm(f => ({ ...f, city: e.target.value }))} />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -407,10 +203,6 @@ export default function ScrappingPage() {
             <input className="lg-input w-full" placeholder={`${form.type} scraping - ${form.city || '...'}`} value={form.task} onChange={(e) => setForm(f => ({ ...f, task: e.target.value }))} />
           </div>
           <div>
-            <label className="block text-[10px] text-text-dim mb-1">Total trouvé (manuel)</label>
-            <input className="lg-input w-full" type="number" value={form.totalFound} onChange={(e) => setForm(f => ({ ...f, totalFound: Number(e.target.value) }))} />
-          </div>
-          <div>
             <label className="block text-[10px] text-text-dim mb-1">Données JSON (tableau de restaurants)</label>
             <textarea
               className="lg-input w-full h-32 resize-none font-mono text-[11px]"
@@ -421,14 +213,105 @@ export default function ScrappingPage() {
           </div>
           <div>
             <label className="block text-[10px] text-text-dim mb-1">Notes</label>
-            <textarea className="lg-input w-full h-16 resize-none" placeholder="Remarques, problèmes rencontrés..." value={form.notes} onChange={(e) => setForm(f => ({ ...f, notes: e.target.value }))} />
+            <textarea className="lg-input w-full h-16 resize-none" placeholder="Remarques..." value={form.notes} onChange={(e) => setForm(f => ({ ...f, notes: e.target.value }))} />
           </div>
         </div>
         <div className="flex justify-end gap-2 mt-5">
           <button className="btn-secondary" onClick={() => setShowModal(false)}>Annuler</button>
-          <button className="btn-primary" onClick={handleSubmit}>{editing ? 'Enregistrer' : 'Créer'}</button>
+          <button className="btn-primary" onClick={handleSubmit}>Créer</button>
         </div>
       </Modal>
+    </div>
+  );
+}
+
+// ── City Card Component ──
+function CityCard({ city, onClick }: { city: CityAggregate; onClick: () => void }) {
+  const pctSite = city.totalRestaurants > 0 ? (city.withWebsite / city.totalRestaurants) * 100 : 0;
+  const pctPhone = city.totalRestaurants > 0 ? (city.withPhone / city.totalRestaurants) * 100 : 0;
+  const noSite = city.totalRestaurants - city.withWebsite;
+
+  return (
+    <div
+      onClick={onClick}
+      className="glass-interactive city-card p-5 rounded-2xl space-y-4"
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center"
+            style={{ background: 'rgba(94,158,255,0.1)', border: '1px solid rgba(94,158,255,0.15)' }}>
+            <MapPin className="w-5 h-5 text-blue" />
+          </div>
+          <div>
+            <h3 className="text-[15px] font-bold text-text">{city.city}</h3>
+            <p className="text-[10px] text-text-dim">{city.totalRestaurants} restaurant{city.totalRestaurants > 1 ? 's' : ''}</p>
+          </div>
+        </div>
+        {city.opportunityCount > 0 && (
+          <div className="flex items-center gap-1 px-2 py-1 rounded-lg opportunity-high">
+            <TrendingUp className="w-3 h-3 text-red" />
+            <span className="text-[10px] font-bold text-red">{city.opportunityCount}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Types pills */}
+      <div className="flex flex-wrap gap-1">
+        {city.types.slice(0, 6).map(type => (
+          <span key={type} className="glass-pill px-2 py-0.5 text-[9px] text-text-muted flex items-center gap-1">
+            {getTypeEmoji(type)} {type}
+          </span>
+        ))}
+        {city.types.length > 6 && (
+          <span className="glass-pill px-2 py-0.5 text-[9px] text-text-dim">+{city.types.length - 6}</span>
+        )}
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-3 gap-2">
+        <div>
+          <p className="text-[9px] text-text-dim flex items-center gap-1"><Star className="w-2.5 h-2.5" /> Note</p>
+          <p className="text-[14px] font-bold text-orange">{city.avgRating > 0 ? city.avgRating.toFixed(1) : '—'}</p>
+        </div>
+        <div>
+          <p className="text-[9px] text-text-dim flex items-center gap-1"><Globe className="w-2.5 h-2.5" /> Site</p>
+          <p className="text-[14px] font-bold text-green">{formatPercent(pctSite)}</p>
+        </div>
+        <div>
+          <p className="text-[9px] text-text-dim flex items-center gap-1"><Phone className="w-2.5 h-2.5" /> Tel</p>
+          <p className="text-[14px] font-bold text-purple">{formatPercent(pctPhone)}</p>
+        </div>
+      </div>
+
+      {/* Progress bars */}
+      <div className="space-y-2">
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[9px] text-text-dim">Présence digitale</span>
+            <span className="text-[9px] text-text-muted font-semibold">{city.withWebsite}/{city.totalRestaurants}</span>
+          </div>
+          <div className="lg-progress">
+            <div
+              className="lg-progress-fill"
+              style={{
+                width: `${pctSite}%`,
+                background: pctSite > 60
+                  ? 'linear-gradient(90deg, #34d399, #5e9eff)'
+                  : 'linear-gradient(90deg, #f87171, #fbbf24)',
+              }}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Alert */}
+      {noSite > 0 && (
+        <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-red/[0.08] border border-red/[0.12]">
+          <AlertTriangle className="w-3 h-3 text-red flex-shrink-0" />
+          <span className="text-[10px] text-red/80">{noSite} sans site web — cibles potentielles</span>
+        </div>
+      )}
     </div>
   );
 }

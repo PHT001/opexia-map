@@ -411,3 +411,57 @@ html, body {
   opacity: 0.4;
   transform: rotate(2deg);
 }
+
+/* ═══════════════════════════════════════════════════════
+   SCRAPING — Progress bar & Opportunity badges
+   ═══════════════════════════════════════════════════════ */
+.lg-progress {
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 100px;
+  height: 6px;
+  overflow: hidden;
+}
+.lg-progress-fill {
+  height: 100%;
+  border-radius: 100px;
+  transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.opportunity-high {
+  background: linear-gradient(135deg, rgba(248,113,113,0.15), rgba(251,191,36,0.1));
+  border: 1px solid rgba(248,113,113,0.2);
+}
+.opportunity-medium {
+  background: linear-gradient(135deg, rgba(251,191,36,0.12), rgba(94,158,255,0.08));
+  border: 1px solid rgba(251,191,36,0.15);
+}
+.opportunity-low {
+  background: linear-gradient(135deg, rgba(52,211,153,0.1), rgba(94,158,255,0.06));
+  border: 1px solid rgba(52,211,153,0.12);
+}
+
+.city-card {
+  cursor: pointer;
+  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.city-card:hover {
+  border-color: rgba(255, 255, 255, 0.18);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  transform: translateY(-2px);
+}
+
+/* Breadcrumb */
+.breadcrumb-link {
+  color: var(--color-text-muted);
+  font-size: 12px;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+.breadcrumb-link:hover {
+  color: var(--color-text);
+}
+.breadcrumb-sep {
+  color: var(--color-text-dim);
+  font-size: 11px;
+  margin: 0 6px;
+}

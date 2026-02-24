@@ -198,3 +198,37 @@ export interface ScrapingSession {
   notes: string;
   createdAt: string;
 }
+
+// ---- Scraping Aggregation ----
+
+export type RedFlag = 'no-website' | 'no-phone' | 'low-rating' | 'few-reviews';
+export type StrengthTag = 'popular' | 'well-rated' | 'digital-ready' | 'needs-digital' | 'struggling';
+
+export interface AnalyzedRestaurant extends ScrapedRestaurant {
+  redFlags: RedFlag[];
+  strengths: StrengthTag[];
+  opportunityScore: number; // 0-100
+}
+
+export interface CityAggregate {
+  city: string;
+  totalRestaurants: number;
+  types: string[];
+  avgRating: number;
+  withPhone: number;
+  withWebsite: number;
+  opportunityCount: number;
+  sessions: ScrapingSession[];
+}
+
+export interface TypeAggregate {
+  type: string;
+  city: string;
+  totalRestaurants: number;
+  avgRating: number;
+  avgReviews: number;
+  withPhone: number;
+  withWebsite: number;
+  opportunityCount: number;
+  restaurants: AnalyzedRestaurant[];
+}

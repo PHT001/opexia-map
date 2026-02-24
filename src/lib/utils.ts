@@ -56,3 +56,20 @@ export const getInvoiceStatusLabel = (s: InvoiceStatus | string): string =>
   ({ 'en-attente': 'En attente', payee: 'Payée', 'en-retard': 'En retard', annulee: 'Annulée' } as Record<string,string>)[s] ?? s;
 export const getInvoiceStatusBadge = (s: InvoiceStatus | string): string =>
   ({ 'en-attente': 'badge-orange', payee: 'badge-green', 'en-retard': 'badge-red', annulee: 'badge-ghost' } as Record<string,string>)[s] ?? 'badge-ghost';
+
+// Scraping helpers
+export function formatPercent(value: number): string {
+  return `${Math.round(value)}%`;
+}
+
+export const getTypeEmoji = (type: string): string => {
+  const map: Record<string, string> = {
+    'Kebab': '🥙', 'Pizza': '🍕', 'Pizzeria': '🍕', 'Burger': '🍔',
+    'Sushi': '🍣', 'Tacos': '🌮', 'Indien': '🍛', 'Chinois': '🥡',
+    'Thaï': '🍜', 'Italien': '🍝', 'Bistro': '🍷', 'Brasserie': '🍺',
+    'Japonais': '🍱', 'Mexicain': '🌯', 'Libanais': '🧆', 'Coréen': '🥘',
+    'Vietnamien': '🍜', 'Grec': '🥗', 'Américain': '🌭', 'Africain': '🍲',
+    'Restaurant': '🍽️',
+  };
+  return map[type] || '🔍';
+};

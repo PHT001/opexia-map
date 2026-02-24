@@ -219,20 +219,67 @@ export function createActivity(p: Omit<Activity, 'id'>) {
   lsSave('reelcrm_activities', [...getActivities(), { ...p, id: uid() }]);
 }
 
-// ---- SCRAPING SESSIONS (localStorage) ----
+// ---- SCRAPING SESSIONS (Supabase) ----
 
-export function getScrapingSessions(): ScrapingSession[] { return ls<ScrapingSession>('reelcrm_scraping'); }
-export function getScrapingSession(id: string): ScrapingSession | null { return getScrapingSessions().find(s => s.id === id) ?? null; }
-export function createScrapingSession(p: Omit<ScrapingSession, 'id' | 'createdAt'>): ScrapingSession {
-  const session = { ...p, id: uid(), createdAt: new Date().toISOString() } as ScrapingSession;
-  lsSave('reelcrm_scraping', [...getScrapingSessions(), session]);
-  return session;
+interface SupaScrapingRow {
+  id: string;
+  date: string;
+  task: string;
+  type: string;
+  city: string;
+  total_found: number;
+  status: string;
+  data: ScrapingSession['data'];
+  notes: string;
+  created_at: string;
 }
-export function updateScrapingSession(id: string, p: Partial<ScrapingSession>) {
-  lsSave('reelcrm_scraping', getScrapingSessions().map(s => s.id === id ? { ...s, ...p } : s));
+
+function rowToSession(r: SupaScrapingRow): ScrapingSession {
+  return {
+    id: r.id, date: r.date, task: r.task, type: r.type, city: r.city,
+    totalFound: r.total_found, status: r.status as ScrapingSession['status'],
+    data: r.data ?? [], notes: r.notes, createdAt: r.created_at,
+  };
 }
-export function deleteScrapingSession(id: string) {
-  lsSave('reelcrm_scraping', getScrapingSessions().filter(s => s.id !== id));
+
+export async function getScrapingSessions(): Promise<ScrapingSession[]> {
+  const { data, error } = await supabase.from('scraping_sessions').select('*').order('created_at', { ascending: false });
+  if (error) { console.error('getScrapingSessions', error); return []; }
+  return (data ?? []).map(rowToSession);
+}
+
+export async function createScrapingSession(p: Omit<ScrapingSession, 'id' | 'createdAt'>): Promise<ScrapingSession | null> {
+  const { data, error } = await supabase.from('scraping_sessions').insert([{
+    date: p.date, task: p.task, type: p.type, city: p.city,
+    total_found: p.totalFound, status: p.status, data: p.data, notes: p.notes,
+  }]).select().single();
+  if (error) { console.error('createScrapingSession', error); return null; }
+  return rowToSession(data);
+}
+
+export async function updateScrapingSession(id: string, p: Partial<ScrapingSession>): Promise<void> {
+  const mapped: Record<string, unknown> = {};
+  if (p.date !== undefined) mapped.date = p.date;
+  if (p.task !== undefined) mapped.task = p.task;
+  if (p.type !== undefined) mapped.type = p.type;
+  if (p.city !== undefined) mapped.city = p.city;
+  if (p.totalFound !== undefined) mapped.total_found = p.totalFound;
+  if (p.status !== undefined) mapped.status = p.status;
+  if (p.data !== undefined) mapped.data = p.data;
+  if (p.notes !== undefined) mapped.notes = p.notes;
+  const { error } = await supabase.from('scraping_sessions').update(mapped).eq('id', id);
+  if (error) console.error('updateScrapingSession', error);
+}
+
+export async function deleteScrapingSession(id: string): Promise<void> {
+  const { error } = await supabase.from('scraping_sessions').delete().eq('id', id);
+  if (error) console.error('deleteScrapingSession', error);
+}
+
+export async function getScrapingSessionsByCity(city: string): Promise<ScrapingSession[]> {
+  const { data, error } = await supabase.from('scraping_sessions').select('*').ilike('city', city).order('created_at', { ascending: false });
+  if (error) { console.error('getScrapingSessionsByCity', error); return []; }
+  return (data ?? []).map(rowToSession);
 }
 
 export function seedData() {
