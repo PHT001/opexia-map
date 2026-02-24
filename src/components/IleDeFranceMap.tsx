@@ -68,11 +68,11 @@ export default function IleDeFranceMap({ departmentData, onNavigateToCity }: Ile
 
   return (
     <div ref={containerRef} className="relative w-full">
-      {/* SVG Map */}
+      {/* SVG Map — full width, no max height restriction */}
       <svg
         viewBox="0 0 520 460"
         className="w-full h-auto"
-        style={{ maxHeight: '420px' }}
+        preserveAspectRatio="xMidYMid meet"
       >
         {/* Background grid dots for visual depth */}
         <defs>
