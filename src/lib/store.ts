@@ -282,7 +282,7 @@ export async function getScrapingSessionsByCity(city: string): Promise<ScrapingS
   return (data ?? []).map(rowToSession);
 }
 
-export function seedData() {
+export async function seedData() {
   if (getDeals().length === 0) {
     [
       { title: 'Chatbot IA – Cedim', clientId: '0af2e950-c20c-4ebb-bdd3-a4e17978a275', value: 2400, stage: 'proposal' as const, priority: 'high' as const, expectedCloseDate: '2026-03-31', description: 'Chatbot intelligent pour diagnostics immobiliers' },
@@ -294,7 +294,7 @@ export function seedData() {
   if (getContracts().length === 0) {
     createContract({ title: 'Horyatiki – Chatbot + Fidélité', clientId: '070c0eb5-7150-44b4-936a-c25c71c993e7', type: 'paid', value: 170, startDate: '2025-01-01', endDate: '2026-12-31', status: 'signed', description: 'Chatbot 90€/mois + autre 80€/mois' });
   }
-  if (getScrapingSessions().length === 0) {
+  if ((await getScrapingSessions()).length === 0) {
     createScrapingSession({
       date: '2026-02-24',
       task: 'Pizza scraping - Fontenay-sous-Bois',

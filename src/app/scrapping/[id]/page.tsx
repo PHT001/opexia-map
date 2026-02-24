@@ -286,16 +286,27 @@ export default function ScrapingDetailPage() {
                     <p className="text-[10px] text-text-dim">{r.city}</p>
                   </td>
 
-                  {/* Address */}
+                  {/* Address — lien Google Maps */}
                   <td className="px-4 py-3 min-w-[220px]">
-                    <p className="text-[11px] text-text-muted">{r.address}</p>
+                    {r.address ? (
+                      <a
+                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent((r.name || '') + ' ' + (r.address || '') + ' ' + (r.city || ''))}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[11px] text-text-muted hover:text-blue transition-colors flex items-center gap-1 group/maps"
+                      >
+                        <MapPin className="w-3 h-3 flex-shrink-0 text-blue/60 group-hover/maps:text-blue" />
+                        <span className="group-hover/maps:underline">{r.address}</span>
+                        <ExternalLink className="w-2.5 h-2.5 opacity-0 group-hover/maps:opacity-60 transition-opacity flex-shrink-0" />
+                      </a>
+                    ) : <span className="text-[11px] text-text-dim">—</span>}
                   </td>
 
-                  {/* Phone */}
-                  <td className="px-4 py-3 min-w-[130px]">
+                  {/* Phone — numéro complet */}
+                  <td className="px-4 py-3 min-w-[160px]">
                     {r.phone ? (
-                      <a href={`tel:${r.phone}`} className="text-[11px] text-text-muted hover:text-blue transition-colors flex items-center gap-1">
-                        <Phone className="w-3 h-3" /> {r.phone}
+                      <a href={`tel:${r.phone}`} className="text-[11px] text-text-muted hover:text-blue transition-colors flex items-center gap-1 whitespace-nowrap">
+                        <Phone className="w-3 h-3 flex-shrink-0" /> {r.phone}
                       </a>
                     ) : <span className="text-[11px] text-text-dim">—</span>}
                   </td>
