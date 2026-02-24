@@ -247,4 +247,22 @@ export function seedData() {
   if (getContracts().length === 0) {
     createContract({ title: 'Horyatiki – Chatbot + Fidélité', clientId: '070c0eb5-7150-44b4-936a-c25c71c993e7', type: 'paid', value: 170, startDate: '2025-01-01', endDate: '2026-12-31', status: 'signed', description: 'Chatbot 90€/mois + autre 80€/mois' });
   }
+  if (getScrapingSessions().length === 0) {
+    createScrapingSession({
+      date: '2026-02-24',
+      task: 'Pizza scraping - Fontenay-sous-Bois',
+      type: 'Pizza',
+      city: 'Fontenay-sous-Bois',
+      totalFound: 5,
+      status: 'completed',
+      notes: '5 pizzerias principales à Fontenay scrappées depuis Google Maps',
+      data: [
+        { id: 1, name: 'Pizzeria Dalayrac', address: '51 Rue Dalayrac, 94120 Fontenay-sous-Bois', city: 'Fontenay-sous-Bois', phone: '01 48 75 XX XX', website: '', rating: 4.9, reviewCount: 63, reviews: [{ text: 'Très bonne pizzeria, pâte délicieuse', rating: 5 }, { text: 'Excellent rapport qualité-prix', rating: 5 }], scrapingDate: '2026-02-24', status: 'verified' },
+        { id: 2, name: 'Pizzeria Au Bois', address: '54 bis Rue Gay Lussac, 94120 Fontenay-sous-Bois', city: 'Fontenay-sous-Bois', phone: '01 48 75 XX XX', website: '', rating: 4.9, reviewCount: 293, reviews: [{ text: 'Pizza authentique, équipe sympa', rating: 5 }, { text: 'Meilleure pizza du quartier', rating: 5 }], scrapingDate: '2026-02-24', status: 'verified' },
+        { id: 3, name: "L'atelier Pizza Fontenay-sous-Bois", address: '46 Rue Dalayrac, 94120 Fontenay-sous-Bois', city: 'Fontenay-sous-Bois', phone: '01 48 75 XX XX', website: '', rating: 5.0, reviewCount: 51, reviews: [{ text: 'Qualité impressionnante', rating: 5 }, { text: 'Pâte parfaitement cuite', rating: 5 }], scrapingDate: '2026-02-24', status: 'verified' },
+        { id: 4, name: 'Restaurant Italienne et Pizzeria Le Venise', address: '5 Rue Notre Dame, 94120 Fontenay-sous-Bois', city: 'Fontenay-sous-Bois', phone: '01 48 75 XX XX', website: '', rating: 4.3, reviewCount: 389, reviews: [{ text: 'Bonne ambiance, pizzas correctes', rating: 4 }, { text: 'Personnel accueillant', rating: 4 }], scrapingDate: '2026-02-24', status: 'verified' },
+        { id: 5, name: 'Forno del Villaggio', address: '13 Rue du Commandant Jean Duhail, 94120 Fontenay-sous-Bois', city: 'Fontenay-sous-Bois', phone: '01 48 75 XX XX', website: '', rating: 5.0, reviewCount: 33, reviews: [{ text: 'Pizzeria de qualité', rating: 5 }, { text: 'Ingrédients frais', rating: 5 }], scrapingDate: '2026-02-24', status: 'verified' },
+      ],
+    });
+  }
 }
