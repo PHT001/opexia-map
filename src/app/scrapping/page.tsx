@@ -1,12 +1,13 @@
 'use client';
 
 import { useEffect, useState, useMemo, useCallback } from 'react';
-import { Plus, Search, RefreshCw, MapPin, Star, Globe, Phone, TrendingUp, AlertTriangle } from 'lucide-react';
+import { Plus, Search, RefreshCw, MapPin, TrendingUp } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { getScrapingSessions, createScrapingSession, updateScrapingSession } from '@/lib/store';
-import { ScrapingSession, ScrapedRestaurant, ScrapingStatus, CityAggregate } from '@/lib/types';
-import { formatPercent, getTypeEmoji } from '@/lib/utils';
+import { getScrapingSessions, createScrapingSession } from '@/lib/store';
+import { ScrapingSession, ScrapedRestaurant, ScrapingStatus } from '@/lib/types';
 import { aggregateByCities } from '@/lib/scraping-helpers';
+import { aggregateByDepartments, IDF_DEPARTMENTS } from '@/lib/idf-departments';
+import IleDeFranceMap from '@/components/IleDeFranceMap';
 import Modal from '@/components/Modal';
 
 const RESTAURANT_TYPES = ['Kebab', 'Pizza', 'Burger', 'Sushi', 'Tacos', 'Indien', 'Chinois', 'Thaï', 'Italien', 'Bistro', 'Japonais', 'Mexicain', 'Libanais', 'Autre'];
@@ -29,7 +30,6 @@ export default function ScrappingPage() {
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState(emptySession);
   const [jsonInput, setJsonInput] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
   const router = useRouter();
 
   const reload = useCallback(async () => {
@@ -41,15 +41,9 @@ export default function ScrappingPage() {
 
   useEffect(() => { reload().then(() => setMounted(true)); }, [reload]);
 
-  // City aggregation
+  // City aggregation → Department aggregation
   const cityAggregates = useMemo(() => aggregateByCities(sessions), [sessions]);
-
-  // Search filter
-  const filteredCities = useMemo(() => {
-    if (!searchTerm) return cityAggregates;
-    const q = searchTerm.toLowerCase();
-    return cityAggregates.filter(c => c.city.toLowerCase().includes(q));
-  }, [cityAggregates, searchTerm]);
+  const departmentData = useMemo(() => aggregateByDepartments(cityAggregates), [cityAggregates]);
 
   // Global stats
   const globalStats = useMemo(() => {
@@ -57,8 +51,13 @@ export default function ScrappingPage() {
     const totalRestaurants = cityAggregates.reduce((s, c) => s + c.totalRestaurants, 0);
     const totalOpportunities = cityAggregates.reduce((s, c) => s + c.opportunityCount, 0);
     const totalSessions = sessions.length;
-    return { totalCities, totalRestaurants, totalOpportunities, totalSessions };
-  }, [cityAggregates, sessions]);
+    const activeDepts = Array.from(departmentData.values()).filter(d => d.hasData).length;
+    return { totalCities, totalRestaurants, totalOpportunities, totalSessions, activeDepts };
+  }, [cityAggregates, sessions, departmentData]);
+
+  const handleNavigateToCity = useCallback((city: string) => {
+    router.push(`/scrapping/ville/${encodeURIComponent(city)}`);
+  }, [router]);
 
   const openCreate = () => {
     setForm(emptySession);
@@ -68,12 +67,10 @@ export default function ScrappingPage() {
 
   const handleSubmit = async () => {
     if (!form.city || !form.type) return;
-
     let parsedData: ScrapedRestaurant[] = form.data;
     if (jsonInput.trim()) {
       try { parsedData = JSON.parse(jsonInput); } catch { /* keep existing */ }
     }
-
     const task = form.task || `${form.type} scraping - ${form.city}`;
     await createScrapingSession({
       ...form,
@@ -93,10 +90,10 @@ export default function ScrappingPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-text flex items-center gap-2">
-            <Search className="w-5 h-5 text-blue" />
-            Scrapping
+            <MapPin className="w-5 h-5 text-red" />
+            Scrapping — Île-de-France
           </h1>
-          <p className="text-xs text-text-muted mt-0.5">Ciblage commercial par ville et type de restaurant</p>
+          <p className="text-xs text-text-muted mt-0.5">Ciblage commercial par département et type de restaurant</p>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={reload} className="btn-secondary flex items-center gap-1.5 text-xs" disabled={loading}>
@@ -109,20 +106,24 @@ export default function ScrappingPage() {
       </div>
 
       {/* Global Stats */}
-      <div className="grid grid-cols-4 gap-3">
-        <div className="glass-interactive p-4 rounded-xl">
+      <div className="grid grid-cols-5 gap-3">
+        <div className="glass-interactive p-3 rounded-xl">
+          <p className="text-[10px] text-text-dim">Départements</p>
+          <p className="text-lg font-bold text-red mt-0.5">{globalStats.activeDepts}<span className="text-[10px] text-text-dim font-normal">/8</span></p>
+        </div>
+        <div className="glass-interactive p-3 rounded-xl">
           <p className="text-[10px] text-text-dim">Villes</p>
           <p className="text-lg font-bold text-blue mt-0.5">{globalStats.totalCities}</p>
         </div>
-        <div className="glass-interactive p-4 rounded-xl">
+        <div className="glass-interactive p-3 rounded-xl">
           <p className="text-[10px] text-text-dim">Restaurants</p>
           <p className="text-lg font-bold text-text mt-0.5">{globalStats.totalRestaurants}</p>
         </div>
-        <div className="glass-interactive p-4 rounded-xl">
+        <div className="glass-interactive p-3 rounded-xl">
           <p className="text-[10px] text-text-dim flex items-center gap-1"><TrendingUp className="w-3 h-3" /> Opportunités</p>
           <p className="text-lg font-bold text-red mt-0.5">{globalStats.totalOpportunities}</p>
         </div>
-        <div className="glass-interactive p-4 rounded-xl">
+        <div className="glass-interactive p-3 rounded-xl">
           <p className="text-[10px] text-text-dim">Sessions</p>
           <p className="text-lg font-bold text-purple mt-0.5">{globalStats.totalSessions}</p>
         </div>
@@ -136,38 +137,83 @@ export default function ScrappingPage() {
         </p>
       </div>
 
-      {/* Search */}
-      <div className="flex items-center gap-3">
-        <div className="flex-1 relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-dim" />
-          <input
-            className="lg-input w-full pl-9"
-            placeholder="Rechercher une ville..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+      {/* Map + Department List */}
+      <div className="flex gap-5">
+        {/* Left: Map */}
+        <div className="flex-1 glass p-4 rounded-2xl">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-[11px] text-text-muted font-medium uppercase tracking-wider">
+              Carte interactive — Île-de-France
+            </p>
+            <div className="flex items-center gap-4 text-[10px] text-text-dim">
+              <span className="flex items-center gap-1.5">
+                <span className="w-3 h-3 rounded-sm inline-block" style={{ background: 'rgba(248,113,113,0.35)' }} />
+                Données disponibles
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-3 h-3 rounded-sm inline-block" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }} />
+                Aucune donnée
+              </span>
+            </div>
+          </div>
+          <IleDeFranceMap
+            departmentData={departmentData}
+            onNavigateToCity={handleNavigateToCity}
           />
         </div>
-        <span className="text-[11px] text-text-dim">{filteredCities.length} ville{filteredCities.length > 1 ? 's' : ''}</span>
-      </div>
 
-      {/* City Cards Grid */}
-      {filteredCities.length === 0 ? (
-        <div className="glass-inset p-12 text-center rounded-2xl">
-          <MapPin className="w-8 h-8 text-text-dim mx-auto mb-3" />
-          <p className="text-sm text-text-muted mb-1">Aucune ville trouvée</p>
-          <p className="text-xs text-text-dim">Créez une session ou utilisez l&apos;API pour ajouter des données de scraping</p>
+        {/* Right: Department List */}
+        <div className="w-56 flex-shrink-0 space-y-2">
+          <p className="text-[10px] text-text-dim uppercase tracking-wider font-medium mb-3">Départements</p>
+          {IDF_DEPARTMENTS.map(dept => {
+            const agg = departmentData.get(dept.code);
+            return (
+              <div
+                key={dept.code}
+                className={`p-3 rounded-xl cursor-pointer transition-all ${
+                  agg?.hasData
+                    ? 'hover:bg-white/[0.06]'
+                    : 'opacity-40 cursor-default'
+                }`}
+                style={{
+                  border: agg?.hasData
+                    ? '1px solid rgba(248,113,113,0.15)'
+                    : '1px solid rgba(255,255,255,0.04)',
+                  background: agg?.hasData
+                    ? 'rgba(248,113,113,0.05)'
+                    : 'transparent',
+                }}
+                onClick={() => {
+                  if (!agg?.hasData) return;
+                  if (agg.cities.length === 1) handleNavigateToCity(agg.cities[0].city);
+                }}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-mono text-text-dim w-6">{dept.code}</span>
+                    <span className={`text-[11px] font-medium ${agg?.hasData ? 'text-text' : 'text-text-dim'}`}>
+                      {dept.shortName}
+                    </span>
+                  </div>
+                  {agg?.hasData && (
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] font-bold text-red">{agg.totalRestaurants}</span>
+                      {agg.totalOpportunities > 0 && (
+                        <TrendingUp className="w-3 h-3 text-red/60" />
+                      )}
+                    </div>
+                  )}
+                </div>
+                {agg?.hasData && (
+                  <p className="text-[9px] text-text-dim mt-0.5 ml-8 truncate">
+                    {agg.cities.map(c => c.city).join(', ')}
+                  </p>
+                )}
+              </div>
+            );
+          })}
         </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredCities.map(city => (
-            <CityCard
-              key={city.city}
-              city={city}
-              onClick={() => router.push(`/scrapping/ville/${encodeURIComponent(city.city)}`)}
-            />
-          ))}
-        </div>
-      )}
+      </div>
 
       {/* Create Modal */}
       <Modal isOpen={showModal} onClose={() => setShowModal(false)} title="Nouvelle Session de Scraping" size="lg">
@@ -221,97 +267,6 @@ export default function ScrappingPage() {
           <button className="btn-primary" onClick={handleSubmit}>Créer</button>
         </div>
       </Modal>
-    </div>
-  );
-}
-
-// ── City Card Component ──
-function CityCard({ city, onClick }: { city: CityAggregate; onClick: () => void }) {
-  const pctSite = city.totalRestaurants > 0 ? (city.withWebsite / city.totalRestaurants) * 100 : 0;
-  const pctPhone = city.totalRestaurants > 0 ? (city.withPhone / city.totalRestaurants) * 100 : 0;
-  const noSite = city.totalRestaurants - city.withWebsite;
-
-  return (
-    <div
-      onClick={onClick}
-      className="glass-interactive city-card p-5 rounded-2xl space-y-4"
-    >
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center"
-            style={{ background: 'rgba(94,158,255,0.1)', border: '1px solid rgba(94,158,255,0.15)' }}>
-            <MapPin className="w-5 h-5 text-blue" />
-          </div>
-          <div>
-            <h3 className="text-[15px] font-bold text-text">{city.city}</h3>
-            <p className="text-[10px] text-text-dim">{city.totalRestaurants} restaurant{city.totalRestaurants > 1 ? 's' : ''}</p>
-          </div>
-        </div>
-        {city.opportunityCount > 0 && (
-          <div className="flex items-center gap-1 px-2 py-1 rounded-lg opportunity-high">
-            <TrendingUp className="w-3 h-3 text-red" />
-            <span className="text-[10px] font-bold text-red">{city.opportunityCount}</span>
-          </div>
-        )}
-      </div>
-
-      {/* Types pills */}
-      <div className="flex flex-wrap gap-1">
-        {city.types.slice(0, 6).map(type => (
-          <span key={type} className="glass-pill px-2 py-0.5 text-[9px] text-text-muted flex items-center gap-1">
-            {getTypeEmoji(type)} {type}
-          </span>
-        ))}
-        {city.types.length > 6 && (
-          <span className="glass-pill px-2 py-0.5 text-[9px] text-text-dim">+{city.types.length - 6}</span>
-        )}
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-2">
-        <div>
-          <p className="text-[9px] text-text-dim flex items-center gap-1"><Star className="w-2.5 h-2.5" /> Note</p>
-          <p className="text-[14px] font-bold text-orange">{city.avgRating > 0 ? city.avgRating.toFixed(1) : '—'}</p>
-        </div>
-        <div>
-          <p className="text-[9px] text-text-dim flex items-center gap-1"><Globe className="w-2.5 h-2.5" /> Site</p>
-          <p className="text-[14px] font-bold text-green">{formatPercent(pctSite)}</p>
-        </div>
-        <div>
-          <p className="text-[9px] text-text-dim flex items-center gap-1"><Phone className="w-2.5 h-2.5" /> Tel</p>
-          <p className="text-[14px] font-bold text-purple">{formatPercent(pctPhone)}</p>
-        </div>
-      </div>
-
-      {/* Progress bars */}
-      <div className="space-y-2">
-        <div>
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-[9px] text-text-dim">Présence digitale</span>
-            <span className="text-[9px] text-text-muted font-semibold">{city.withWebsite}/{city.totalRestaurants}</span>
-          </div>
-          <div className="lg-progress">
-            <div
-              className="lg-progress-fill"
-              style={{
-                width: `${pctSite}%`,
-                background: pctSite > 60
-                  ? 'linear-gradient(90deg, #34d399, #5e9eff)'
-                  : 'linear-gradient(90deg, #f87171, #fbbf24)',
-              }}
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Alert */}
-      {noSite > 0 && (
-        <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-red/[0.08] border border-red/[0.12]">
-          <AlertTriangle className="w-3 h-3 text-red flex-shrink-0" />
-          <span className="text-[10px] text-red/80">{noSite} sans site web — cibles potentielles</span>
-        </div>
-      )}
     </div>
   );
 }
