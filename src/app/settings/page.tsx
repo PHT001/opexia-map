@@ -2,37 +2,45 @@
 
 import { useState } from 'react';
 import { User, Bell, Palette, Database, Download, Trash2, Save } from 'lucide-react';
+import { getClients, getDeals, getContracts, getActivities } from '@/lib/store';
+import { supabase } from '@/lib/supabase';
 
 export default function SettingsPage() {
   const [notifications, setNotifications] = useState({ email: true, push: true, deals: true, clients: false });
   const [saved, setSaved] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const handleSave = () => {
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
 
-  const handleExport = () => {
-    const data = {
-      clients: JSON.parse(localStorage.getItem('reelcrm_clients') || '[]'),
-      deals: JSON.parse(localStorage.getItem('reelcrm_deals') || '[]'),
-      contracts: JSON.parse(localStorage.getItem('reelcrm_contracts') || '[]'),
-      activities: JSON.parse(localStorage.getItem('reelcrm_activities') || '[]'),
-    };
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `reelcrm-export-${new Date().toISOString().split('T')[0]}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const [clients, deals, contracts, activities] = await Promise.all([
+        getClients(), getDeals(), getContracts(), getActivities(),
+      ]);
+      const data = { clients, deals, contracts, activities };
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `opexia-export-${new Date().toISOString().split('T')[0]}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setExporting(false);
+    }
   };
 
-  const handleReset = () => {
-    localStorage.removeItem('reelcrm_clients');
-    localStorage.removeItem('reelcrm_deals');
-    localStorage.removeItem('reelcrm_contracts');
-    localStorage.removeItem('reelcrm_activities');
+  const handleReset = async () => {
+    if (!confirm('Êtes-vous sûr de vouloir supprimer toutes les données ? Cette action est irréversible.')) return;
+    await Promise.all([
+      supabase.from('activities').delete().neq('id', ''),
+      supabase.from('contracts').delete().neq('id', ''),
+      supabase.from('deals').delete().neq('id', ''),
+    ]);
     window.location.reload();
   };
 
@@ -131,8 +139,8 @@ export default function SettingsPage() {
           <h3 className="text-[13px] font-semibold text-text">Données</h3>
         </div>
         <div className="flex flex-wrap gap-3">
-          <button onClick={handleExport} className="btn-secondary flex items-center gap-2 text-xs">
-            <Download className="w-3.5 h-3.5" /> Exporter les données
+          <button onClick={handleExport} disabled={exporting} className="btn-secondary flex items-center gap-2 text-xs">
+            <Download className="w-3.5 h-3.5" /> {exporting ? 'Export en cours...' : 'Exporter les données'}
           </button>
           <button onClick={handleReset} className="btn-ghost flex items-center gap-2 text-xs text-red">
             <Trash2 className="w-3.5 h-3.5" /> Réinitialiser les données

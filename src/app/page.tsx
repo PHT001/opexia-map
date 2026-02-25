@@ -48,8 +48,8 @@ export default function DashboardPage() {
     const load = async () => {
       seedData();
       setClients(await getClients());
-      setDeals(getDeals());
-      setActivities(getActivities());
+      setDeals(await getDeals());
+      setActivities(await getActivities());
       setMounted(true);
     };
     load();

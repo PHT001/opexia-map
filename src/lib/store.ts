@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { Client, Devis, Invoice, DevisLigne, Interaction, ScrapingSession } from './types';
+import { Client, Devis, Invoice, DevisLigne, Interaction, ScrapingSession, Deal, Contract, Activity } from './types';
 
 // ---- CLIENTS ----
 
@@ -164,59 +164,150 @@ export async function createInteraction(payload: Omit<Interaction, 'id' | 'creat
   if (error) console.error('createInteraction', error);
 }
 
-// ---- LEGACY localStorage helpers (deals/contracts pages) ----
+// ---- DEALS (Supabase) ----
 
-function uid(): string {
-  return Math.random().toString(36).slice(2) + Date.now().toString(36);
-}
-
-function ls<T>(key: string): T[] {
-  if (typeof window === 'undefined') return [];
-  try { return JSON.parse(localStorage.getItem(key) || '[]'); } catch { return []; }
+interface SupaDealRow {
+  id: string; title: string; client_id: string; value: number;
+  stage: string; priority: string; expected_close_date: string;
+  description: string; created_at: string;
 }
 
-function lsSave<T>(key: string, d: T[]) {
-  if (typeof window === 'undefined') return;
-  localStorage.setItem(key, JSON.stringify(d));
+function rowToDeal(r: SupaDealRow): Deal {
+  return {
+    id: r.id, title: r.title, clientId: r.client_id, value: r.value,
+    stage: r.stage as Deal['stage'], priority: r.priority as Deal['priority'],
+    expectedCloseDate: r.expected_close_date, description: r.description,
+    createdAt: r.created_at,
+  };
 }
 
-type Deal = import('./types').Deal;
-type Contract = import('./types').Contract;
-type Activity = import('./types').Activity;
-
-export function getDeals(): Deal[] { return ls<Deal>('reelcrm_deals'); }
-export function getDeal(id: string): Deal | null { return getDeals().find(d => d.id === id) ?? null; }
-export function createDeal(p: Omit<Deal, 'id' | 'createdAt'>): Deal {
-  const deal = { ...p, id: uid(), createdAt: new Date().toISOString() } as Deal;
-  lsSave('reelcrm_deals', [...getDeals(), deal]);
-  return deal;
-}
-export function updateDeal(id: string, p: Partial<Deal>) {
-  lsSave('reelcrm_deals', getDeals().map(d => d.id === id ? { ...d, ...p } : d));
-}
-export function deleteDeal(id: string) {
-  lsSave('reelcrm_deals', getDeals().filter(d => d.id !== id));
+export async function getDeals(): Promise<Deal[]> {
+  const { data, error } = await supabase.from('deals').select('*').order('created_at', { ascending: false });
+  if (error) { console.error('getDeals', error); return []; }
+  return (data ?? []).map(rowToDeal);
 }
 
-export function getContracts(): Contract[] { return ls<Contract>('reelcrm_contracts'); }
-export function createContract(p: Omit<Contract, 'id' | 'createdAt'>): Contract {
-  const c = { ...p, id: uid(), createdAt: new Date().toISOString() } as Contract;
-  lsSave('reelcrm_contracts', [...getContracts(), c]);
-  return c;
-}
-export function updateContract(id: string, p: Partial<Contract>) {
-  lsSave('reelcrm_contracts', getContracts().map(c => c.id === id ? { ...c, ...p } : c));
-}
-export function deleteContract(id: string) {
-  lsSave('reelcrm_contracts', getContracts().filter(c => c.id !== id));
+export async function getDeal(id: string): Promise<Deal | null> {
+  const { data, error } = await supabase.from('deals').select('*').eq('id', id).single();
+  if (error) { console.error('getDeal', error); return null; }
+  return rowToDeal(data);
 }
 
-export function getActivities(): Activity[] { return ls<Activity>('reelcrm_activities'); }
-export function getClientActivities(clientId: string): Activity[] {
-  return getActivities().filter(a => a.clientId === clientId);
+export async function createDeal(p: Omit<Deal, 'id' | 'createdAt'>): Promise<Deal | null> {
+  const { data, error } = await supabase.from('deals').insert([{
+    title: p.title, client_id: p.clientId, value: p.value,
+    stage: p.stage, priority: p.priority,
+    expected_close_date: p.expectedCloseDate, description: p.description,
+  }]).select().single();
+  if (error) { console.error('createDeal', error); return null; }
+  return rowToDeal(data);
 }
-export function createActivity(p: Omit<Activity, 'id'>) {
-  lsSave('reelcrm_activities', [...getActivities(), { ...p, id: uid() }]);
+
+export async function updateDeal(id: string, p: Partial<Deal>): Promise<void> {
+  const mapped: Record<string, unknown> = {};
+  if (p.title !== undefined) mapped.title = p.title;
+  if (p.clientId !== undefined) mapped.client_id = p.clientId;
+  if (p.value !== undefined) mapped.value = p.value;
+  if (p.stage !== undefined) mapped.stage = p.stage;
+  if (p.priority !== undefined) mapped.priority = p.priority;
+  if (p.expectedCloseDate !== undefined) mapped.expected_close_date = p.expectedCloseDate;
+  if (p.description !== undefined) mapped.description = p.description;
+  const { error } = await supabase.from('deals').update(mapped).eq('id', id);
+  if (error) console.error('updateDeal', error);
+}
+
+export async function deleteDeal(id: string): Promise<void> {
+  const { error } = await supabase.from('deals').delete().eq('id', id);
+  if (error) console.error('deleteDeal', error);
+}
+
+// ---- CONTRACTS (Supabase) ----
+
+interface SupaContractRow {
+  id: string; title: string; client_id: string; deal_id: string | null;
+  type: string; value: number; start_date: string; end_date: string;
+  status: string; description: string; created_at: string;
+}
+
+function rowToContract(r: SupaContractRow): Contract {
+  return {
+    id: r.id, title: r.title, clientId: r.client_id, dealId: r.deal_id ?? undefined,
+    type: r.type as Contract['type'], value: r.value,
+    startDate: r.start_date, endDate: r.end_date,
+    status: r.status as Contract['status'], description: r.description,
+    createdAt: r.created_at,
+  };
+}
+
+export async function getContracts(): Promise<Contract[]> {
+  const { data, error } = await supabase.from('contracts').select('*').order('created_at', { ascending: false });
+  if (error) { console.error('getContracts', error); return []; }
+  return (data ?? []).map(rowToContract);
+}
+
+export async function createContract(p: Omit<Contract, 'id' | 'createdAt'>): Promise<Contract | null> {
+  const { data, error } = await supabase.from('contracts').insert([{
+    title: p.title, client_id: p.clientId, deal_id: p.dealId ?? null,
+    type: p.type, value: p.value, start_date: p.startDate, end_date: p.endDate,
+    status: p.status, description: p.description,
+  }]).select().single();
+  if (error) { console.error('createContract', error); return null; }
+  return rowToContract(data);
+}
+
+export async function updateContract(id: string, p: Partial<Contract>): Promise<void> {
+  const mapped: Record<string, unknown> = {};
+  if (p.title !== undefined) mapped.title = p.title;
+  if (p.clientId !== undefined) mapped.client_id = p.clientId;
+  if (p.dealId !== undefined) mapped.deal_id = p.dealId;
+  if (p.type !== undefined) mapped.type = p.type;
+  if (p.value !== undefined) mapped.value = p.value;
+  if (p.startDate !== undefined) mapped.start_date = p.startDate;
+  if (p.endDate !== undefined) mapped.end_date = p.endDate;
+  if (p.status !== undefined) mapped.status = p.status;
+  if (p.description !== undefined) mapped.description = p.description;
+  const { error } = await supabase.from('contracts').update(mapped).eq('id', id);
+  if (error) console.error('updateContract', error);
+}
+
+export async function deleteContract(id: string): Promise<void> {
+  const { error } = await supabase.from('contracts').delete().eq('id', id);
+  if (error) console.error('deleteContract', error);
+}
+
+// ---- ACTIVITIES (Supabase) ----
+
+interface SupaActivityRow {
+  id: string; client_id: string; type: string;
+  title: string; description: string; date: string;
+}
+
+function rowToActivity(r: SupaActivityRow): Activity {
+  return {
+    id: r.id, clientId: r.client_id,
+    type: r.type as Activity['type'],
+    title: r.title, description: r.description, date: r.date,
+  };
+}
+
+export async function getActivities(): Promise<Activity[]> {
+  const { data, error } = await supabase.from('activities').select('*').order('date', { ascending: false });
+  if (error) { console.error('getActivities', error); return []; }
+  return (data ?? []).map(rowToActivity);
+}
+
+export async function getClientActivities(clientId: string): Promise<Activity[]> {
+  const { data, error } = await supabase.from('activities').select('*').eq('client_id', clientId).order('date', { ascending: false });
+  if (error) { console.error('getClientActivities', error); return []; }
+  return (data ?? []).map(rowToActivity);
+}
+
+export async function createActivity(p: Omit<Activity, 'id'>): Promise<void> {
+  const { error } = await supabase.from('activities').insert([{
+    client_id: p.clientId, type: p.type,
+    title: p.title, description: p.description, date: p.date,
+  }]);
+  if (error) console.error('createActivity', error);
 }
 
 // ---- SCRAPING SESSIONS (Supabase) ----
@@ -283,19 +374,20 @@ export async function getScrapingSessionsByCity(city: string): Promise<ScrapingS
 }
 
 export async function seedData() {
-  if (getDeals().length === 0) {
-    [
+  if ((await getDeals()).length === 0) {
+    const dealSeeds = [
       { title: 'Chatbot IA – Cedim', clientId: '0af2e950-c20c-4ebb-bdd3-a4e17978a275', value: 2400, stage: 'proposal' as const, priority: 'high' as const, expectedCloseDate: '2026-03-31', description: 'Chatbot intelligent pour diagnostics immobiliers' },
       { title: 'Fidélité – Horyatiki', clientId: '070c0eb5-7150-44b4-936a-c25c71c993e7', value: 2040, stage: 'closed_won' as const, priority: 'medium' as const, expectedCloseDate: '2026-01-01', description: 'Programme de fidélité + chatbot 170€/mois' },
       { title: 'Automatisation – Bollywood Village', clientId: '9e7f5699-edb5-4f74-afb3-e76b8d7d6a7b', value: 1500, stage: 'negotiation' as const, priority: 'medium' as const, expectedCloseDate: '2026-03-15', description: 'Automatisation commandes restaurant' },
       { title: 'CRM – Maison des Saveurs', clientId: '629d4640-ed6d-4bc9-9c54-e3a66147b4b9', value: 800, stage: 'lead' as const, priority: 'low' as const, expectedCloseDate: '2026-04-30', description: 'Gestion clients restaurant' },
-    ].forEach(d => createDeal(d));
+    ];
+    for (const d of dealSeeds) await createDeal(d);
   }
-  if (getContracts().length === 0) {
-    createContract({ title: 'Horyatiki – Chatbot + Fidélité', clientId: '070c0eb5-7150-44b4-936a-c25c71c993e7', type: 'paid', value: 170, startDate: '2025-01-01', endDate: '2026-12-31', status: 'signed', description: 'Chatbot 90€/mois + autre 80€/mois' });
+  if ((await getContracts()).length === 0) {
+    await createContract({ title: 'Horyatiki – Chatbot + Fidélité', clientId: '070c0eb5-7150-44b4-936a-c25c71c993e7', type: 'paid', value: 170, startDate: '2025-01-01', endDate: '2026-12-31', status: 'signed', description: 'Chatbot 90€/mois + autre 80€/mois' });
   }
   if ((await getScrapingSessions()).length === 0) {
-    createScrapingSession({
+    await createScrapingSession({
       date: '2026-02-24',
       task: 'Pizza scraping - Fontenay-sous-Bois',
       type: 'Pizza',

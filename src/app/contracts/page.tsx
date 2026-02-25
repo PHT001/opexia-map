@@ -19,7 +19,7 @@ export default function ContractsPage() {
   const [form, setForm] = useState(emptyContract);
   const [mounted, setMounted] = useState(false);
 
-  const reload = async () => { setContracts(getContracts()); setClients(await getClients()); };
+  const reload = async () => { setContracts(await getContracts()); setClients(await getClients()); };
   useEffect(() => { reload().then(() => setMounted(true)); }, []);
 
   const filtered = useMemo(() => {
@@ -40,8 +40,8 @@ export default function ContractsPage() {
 
   const openCreate = () => { setEditing(null); setForm(emptyContract); setShowModal(true); };
   const openEdit = (ct: Contract) => { setEditing(ct); setForm({ title: ct.title, clientId: ct.clientId, dealId: ct.dealId, type: ct.type, value: ct.value, startDate: ct.startDate, endDate: ct.endDate, status: ct.status, description: ct.description }); setShowModal(true); };
-  const handleSubmit = () => { if (!form.title || !form.clientId) return; editing ? updateContract(editing.id, form) : createContract(form); reload(); setShowModal(false); };
-  const handleDelete = (id: string) => { deleteContract(id); reload(); };
+  const handleSubmit = async () => { if (!form.title || !form.clientId) return; editing ? await updateContract(editing.id, form) : await createContract(form); await reload(); setShowModal(false); };
+  const handleDelete = async (id: string) => { await deleteContract(id); await reload(); };
 
   if (!mounted) return <div className="p-8 text-text-dim">Chargement...</div>;
 
