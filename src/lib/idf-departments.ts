@@ -97,8 +97,13 @@ export const IDF_DEPARTMENTS: IdfDepartment[] = [
 // ══════════════════════════════════════════
 
 const CITY_TO_DEPT_RAW: Record<string, string> = {
-  // 75 - Paris
+  // 75 - Paris (global + arrondissements)
   'Paris': '75',
+  'Paris 1er': '75', 'Paris 2e': '75', 'Paris 3e': '75', 'Paris 4e': '75',
+  'Paris 5e': '75', 'Paris 6e': '75', 'Paris 7e': '75', 'Paris 8e': '75',
+  'Paris 9e': '75', 'Paris 10e': '75', 'Paris 11e': '75', 'Paris 12e': '75',
+  'Paris 13e': '75', 'Paris 14e': '75', 'Paris 15e': '75', 'Paris 16e': '75',
+  'Paris 17e': '75', 'Paris 18e': '75', 'Paris 19e': '75', 'Paris 20e': '75',
 
   // 92 - Hauts-de-Seine
   'Nanterre': '92', 'Boulogne-Billancourt': '92', 'Courbevoie': '92',

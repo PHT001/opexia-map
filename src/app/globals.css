@@ -536,3 +536,9 @@ html, body {
   from { opacity: 0; transform: translateX(16px); }
   to   { opacity: 1; transform: translateX(0); }
 }
+
+/* Arrondissement path styling */
+.arr-path {
+  will-change: opacity;
+  transform: translateZ(0);
+}

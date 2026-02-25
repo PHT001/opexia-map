@@ -3,11 +3,14 @@
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import { X, TrendingUp, MapPin, ArrowRight } from 'lucide-react';
 import { IDF_DEPARTMENTS, DepartmentAggregate } from '@/lib/idf-departments';
+import { ArrondissementAggregate } from '@/lib/paris-arrondissements';
+import ParisArrondissementsMap from './ParisArrondissementsMap';
 import { getTypeEmoji } from '@/lib/utils';
 
 interface IleDeFranceMapProps {
   departmentData: Map<string, DepartmentAggregate>;
   onNavigateToCity: (city: string) => void;
+  arrondissementData?: Map<number, ArrondissementAggregate>;
 }
 
 // Parse SVG path to get bounding box
@@ -34,7 +37,7 @@ const ZOOM_DURATION = 500; // ms
 
 interface ViewBox { x: number; y: number; w: number; h: number }
 
-export default function IleDeFranceMap({ departmentData, onNavigateToCity }: IleDeFranceMapProps) {
+export default function IleDeFranceMap({ departmentData, onNavigateToCity, arrondissementData }: IleDeFranceMapProps) {
   const [hoveredDept, setHoveredDept] = useState<string | null>(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
   const [selectedDept, setSelectedDept] = useState<string | null>(null);
@@ -359,8 +362,45 @@ export default function IleDeFranceMap({ departmentData, onNavigateToCity }: Ile
         </button>
       )}
 
-      {/* City panel */}
-      {isZoomed && showPanel && selectedData && (
+      {/* Paris arrondissements panel — special case for dept 75 */}
+      {isZoomed && showPanel && selectedData && selectedDept === '75' && arrondissementData && (
+        <div
+          className="absolute top-0 right-0 h-full map-city-panel"
+          style={{
+            width: '420px',
+            background: 'rgba(12,12,20,0.97)',
+            border: '1px solid rgba(255,255,255,0.1)',
+            borderRadius: '16px',
+            boxShadow: '0 16px 48px rgba(0,0,0,0.6)',
+          }}
+        >
+          <div className="p-4 flex flex-col h-full">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <p className="text-[9px] text-text-dim uppercase tracking-wider">Paris (75)</p>
+                <p className="text-[15px] font-bold text-text">Arrondissements</p>
+              </div>
+              <button
+                onClick={zoomOut}
+                className="p-1.5 rounded-lg hover:bg-white/[0.06] transition-colors"
+              >
+                <X className="w-4 h-4 text-text-dim" />
+              </button>
+            </div>
+            {/* Arrondissement map fills the rest */}
+            <div className="flex-1 min-h-0">
+              <ParisArrondissementsMap
+                arrondissementData={arrondissementData}
+                onNavigateToCity={onNavigateToCity}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Standard city panel — for all other departments */}
+      {isZoomed && showPanel && selectedData && !(selectedDept === '75' && arrondissementData) && (
         <div
           className="absolute top-0 right-0 w-72 h-full map-city-panel"
           style={{

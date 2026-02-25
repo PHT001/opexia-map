@@ -7,6 +7,7 @@ import { getScrapingSessions, createScrapingSession } from '@/lib/store';
 import { ScrapingSession, ScrapedRestaurant, ScrapingStatus } from '@/lib/types';
 import { aggregateByCities } from '@/lib/scraping-helpers';
 import { aggregateByDepartments } from '@/lib/idf-departments';
+import { aggregateByArrondissements } from '@/lib/paris-arrondissements';
 import IleDeFranceMap from '@/components/IleDeFranceMap';
 import Modal from '@/components/Modal';
 
@@ -41,9 +42,10 @@ export default function ScrappingPage() {
 
   useEffect(() => { reload().then(() => setMounted(true)); }, [reload]);
 
-  // City aggregation → Department aggregation
+  // City aggregation → Department aggregation → Arrondissement aggregation
   const cityAggregates = useMemo(() => aggregateByCities(sessions), [sessions]);
   const departmentData = useMemo(() => aggregateByDepartments(cityAggregates), [cityAggregates]);
+  const arrondissementData = useMemo(() => aggregateByArrondissements(cityAggregates), [cityAggregates]);
 
   // Global stats
   const globalStats = useMemo(() => {
@@ -161,6 +163,7 @@ export default function ScrappingPage() {
         <IleDeFranceMap
           departmentData={departmentData}
           onNavigateToCity={handleNavigateToCity}
+          arrondissementData={arrondissementData}
         />
       </div>
 
