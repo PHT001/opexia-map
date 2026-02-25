@@ -3,241 +3,268 @@ import { CityAggregate } from './types';
 // ══════════════════════════════════════════
 // Paris — 20 Arrondissements SVG Map Data
 // ══════════════════════════════════════════
+// Géographie précise basée sur les vraies frontières de Paris
+// Spirale d'escargot du 1er (centre) vers le 20e (est)
+// ViewBox: 0 0 500 450 — proportions réalistes de Paris (plus large que haut)
+// La Seine traverse Paris du SE vers le SW
 
 export interface ParisArrondissement {
   number: number;
   name: string;
   shortName: string;
-  cityName: string;        // Used for navigation & data matching
+  cityName: string;
   labelX: number;
   labelY: number;
-  path: string;            // SVG path data
+  path: string;
 }
 
-// ViewBox for the Paris arrondissements map
-export const PARIS_VIEWBOX = '0 0 500 420';
+export const PARIS_VIEWBOX = '0 0 500 450';
 
-// Accurate SVG paths for all 20 arrondissements of Paris
-// Based on real geographic boundaries — spirale d'escargot from center outward
-// Coordinate system: viewBox 0 0 500 420
-// Shared border points ensure no visual gaps between arrondissements
+// ────────────────────────────────────────────────────────
+// Key shared border points (referenced by multiple arrondissements)
+// ────────────────────────────────────────────────────────
+// Points on the Seine (rive droite / rive gauche divider):
+//   West entry:  ~(52,215)  ──  Pont de Garigliano (16e/15e)
+//   Trocadéro:   ~(102,208) ──  Pont d'Iéna (16e/7e)
+//   Concorde:    ~(150,195) ──  Pont de la Concorde (8e/7e)
+//   Louvre:      ~(195,200) ──  Pont Royal (1er/7e)
+//   Châtelet:    ~(228,200) ──  Pont Neuf (1er/6e)
+//   Notre-Dame:  ~(255,205) ──  (4e/5e)
+//   Austerlitz:  ~(280,215) ──  Pont d'Austerlitz (12e/5e)
+//   Bercy:       ~(320,230) ──  Pont de Bercy (12e/13e)
+//   East exit:   ~(370,260) ──  Quai d'Ivry (12e/13e)
 
 export const PARIS_ARRONDISSEMENTS: ParisArrondissement[] = [
-  // ── Centre (1er - 4e) ──
+  // ═══════════════════════════════════
+  // CENTRE — 1er à 4e (petite couronne)
+  // ═══════════════════════════════════
   {
     number: 1,
     name: '1er arrondissement',
     shortName: '1er',
     cityName: 'Paris 1er',
-    labelX: 220,
-    labelY: 200,
-    // Louvre / Les Halles / Palais-Royal — center-west
-    path: 'M 205,175 L 220,170 L 240,172 L 252,180 L 255,195 L 250,210 L 238,218 L 220,215 L 205,210 L 198,195 Z',
+    labelX: 200,
+    labelY: 185,
+    // Louvre, Les Halles, Palais-Royal, Tuileries
+    // Borné par: Seine au sud, 2e au nord-est, 3e/4e à l'est, 8e/9e au nord-ouest
+    path: 'M 170,195 L 175,180 L 185,170 L 200,165 L 215,165 L 228,170 L 232,180 L 230,192 L 228,200 L 195,200 Z',
   },
   {
     number: 2,
     name: '2e arrondissement',
     shortName: '2e',
     cityName: 'Paris 2e',
-    labelX: 248,
-    labelY: 168,
-    // Bourse / Sentier — small, north of 1er
-    path: 'M 240,172 L 232,158 L 242,150 L 258,150 L 268,158 L 260,170 L 252,180 Z',
+    labelX: 222,
+    labelY: 155,
+    // Bourse, Sentier — le plus petit arrondissement
+    path: 'M 200,165 L 205,155 L 215,148 L 230,148 L 240,155 L 238,165 L 228,170 L 215,165 Z',
   },
   {
     number: 3,
     name: '3e arrondissement',
     shortName: '3e',
     cityName: 'Paris 3e',
-    labelX: 275,
-    labelY: 172,
-    // Haut Marais / Temple — northeast of center
-    path: 'M 260,170 L 268,158 L 280,152 L 295,158 L 295,172 L 288,182 L 275,185 L 265,182 L 252,180 Z',
+    labelX: 255,
+    labelY: 162,
+    // Haut Marais, Temple, Arts et Métiers
+    path: 'M 228,170 L 238,165 L 240,155 L 252,148 L 268,150 L 275,160 L 270,172 L 258,178 L 245,180 L 232,180 Z',
   },
   {
     number: 4,
     name: '4e arrondissement',
     shortName: '4e',
     cityName: 'Paris 4e',
-    labelX: 272,
-    labelY: 202,
-    // Marais / Île de la Cité / Notre-Dame — east of 1er
-    path: 'M 252,180 L 265,182 L 275,185 L 288,182 L 295,195 L 290,210 L 278,218 L 260,222 L 250,218 L 250,210 L 255,195 Z',
+    labelX: 252,
+    labelY: 192,
+    // Marais, Île de la Cité, Île Saint-Louis, Notre-Dame, Hôtel de Ville
+    path: 'M 232,180 L 245,180 L 258,178 L 270,172 L 278,180 L 280,192 L 275,202 L 255,205 L 238,202 L 228,200 L 230,192 Z',
   },
 
-  // ── Rive Gauche intérieure (5e - 7e) ──
+  // ═══════════════════════════════════
+  // RIVE GAUCHE INTÉRIEURE — 5e à 7e
+  // ═══════════════════════════════════
   {
     number: 5,
     name: '5e arrondissement',
     shortName: '5e',
     cityName: 'Paris 5e',
-    labelX: 268,
-    labelY: 248,
-    // Quartier Latin / Panthéon — south of 4e
-    path: 'M 250,218 L 260,222 L 278,218 L 290,225 L 298,245 L 292,265 L 275,272 L 255,268 L 240,258 L 238,240 L 238,218 Z',
+    labelX: 258,
+    labelY: 232,
+    // Quartier Latin, Panthéon, Jardin des Plantes, Jussieu
+    path: 'M 228,200 L 238,202 L 255,205 L 275,202 L 280,215 L 285,235 L 278,252 L 260,258 L 240,255 L 225,245 L 218,228 L 218,210 Z',
   },
   {
     number: 6,
     name: '6e arrondissement',
     shortName: '6e',
     cityName: 'Paris 6e',
-    labelX: 218,
-    labelY: 240,
-    // Saint-Germain-des-Prés / Luxembourg
-    path: 'M 205,210 L 220,215 L 238,218 L 238,240 L 240,258 L 225,265 L 205,260 L 190,248 L 188,230 L 192,218 Z',
+    labelX: 195,
+    labelY: 225,
+    // Saint-Germain-des-Prés, Luxembourg, Odéon, Saint-Sulpice
+    path: 'M 170,195 L 195,200 L 228,200 L 218,210 L 218,228 L 225,245 L 212,252 L 195,248 L 178,238 L 168,222 L 162,210 Z',
   },
   {
     number: 7,
     name: '7e arrondissement',
     shortName: '7e',
     cityName: 'Paris 7e',
-    labelX: 172,
-    labelY: 222,
-    // Tour Eiffel / Invalides — west, rive gauche
-    path: 'M 130,195 L 152,182 L 175,178 L 192,182 L 198,195 L 205,210 L 192,218 L 188,230 L 190,248 L 175,255 L 155,248 L 138,232 L 128,215 Z',
+    labelX: 130,
+    labelY: 220,
+    // Tour Eiffel, Invalides, Champ de Mars, Musée d'Orsay
+    path: 'M 102,208 L 120,200 L 150,195 L 170,195 L 162,210 L 168,222 L 178,238 L 165,250 L 148,252 L 125,245 L 105,232 L 92,220 Z',
   },
 
-  // ── Rive Droite intérieure (8e - 9e) ──
+  // ═══════════════════════════════════
+  // RIVE DROITE INTÉRIEURE — 8e, 9e
+  // ═══════════════════════════════════
   {
     number: 8,
     name: '8e arrondissement',
     shortName: '8e',
     cityName: 'Paris 8e',
-    labelX: 170,
+    labelX: 142,
     labelY: 168,
-    // Champs-Élysées / Madeleine — northwest
-    path: 'M 130,155 L 158,142 L 182,140 L 200,148 L 205,162 L 205,175 L 198,195 L 192,182 L 175,178 L 152,182 L 130,195 L 122,175 Z',
+    // Champs-Élysées, Arc de Triomphe, Madeleine, Parc Monceau
+    path: 'M 102,165 L 118,148 L 142,138 L 165,135 L 182,140 L 185,155 L 185,170 L 175,180 L 170,195 L 150,195 L 120,200 L 102,208 L 95,190 Z',
   },
   {
     number: 9,
     name: '9e arrondissement',
     shortName: '9e',
     cityName: 'Paris 9e',
-    labelX: 228,
-    labelY: 148,
-    // Opéra / Grands Boulevards
-    path: 'M 205,162 L 200,148 L 210,138 L 232,132 L 248,138 L 242,150 L 232,158 L 240,172 L 220,170 L 205,175 Z',
+    labelX: 205,
+    labelY: 142,
+    // Opéra, Grands Boulevards, Pigalle, Folies Bergère
+    path: 'M 182,140 L 192,132 L 208,128 L 225,130 L 235,138 L 230,148 L 215,148 L 205,155 L 200,165 L 185,170 L 185,155 Z',
   },
 
-  // ── Rive Droite (10e - 12e) ──
+  // ═══════════════════════════════════
+  // RIVE DROITE — 10e à 12e
+  // ═══════════════════════════════════
   {
     number: 10,
     name: '10e arrondissement',
     shortName: '10e',
     cityName: 'Paris 10e',
-    labelX: 278,
-    labelY: 138,
-    // Gare du Nord / Canal Saint-Martin
-    path: 'M 248,138 L 258,128 L 278,118 L 300,120 L 312,132 L 308,148 L 295,158 L 280,152 L 268,158 L 258,150 L 242,150 Z',
+    labelX: 262,
+    labelY: 130,
+    // Gare du Nord, Gare de l'Est, Canal Saint-Martin, République
+    path: 'M 235,138 L 245,125 L 262,118 L 282,115 L 298,120 L 302,135 L 295,148 L 280,155 L 268,150 L 252,148 L 240,155 L 230,148 Z',
   },
   {
     number: 11,
     name: '11e arrondissement',
     shortName: '11e',
     cityName: 'Paris 11e',
-    labelX: 318,
-    labelY: 188,
-    // Bastille / Oberkampf / République
-    path: 'M 295,158 L 308,148 L 325,152 L 342,162 L 348,180 L 342,200 L 328,210 L 310,215 L 295,210 L 295,195 L 288,182 L 295,172 Z',
+    labelX: 305,
+    labelY: 175,
+    // Bastille, Oberkampf, République, Nation
+    path: 'M 275,160 L 280,155 L 295,148 L 302,135 L 318,138 L 335,148 L 340,165 L 335,185 L 322,195 L 305,200 L 290,198 L 280,192 L 278,180 Z',
   },
   {
     number: 12,
     name: '12e arrondissement',
     shortName: '12e',
     cityName: 'Paris 12e',
-    labelX: 350,
-    labelY: 255,
-    // Bercy / Bois de Vincennes — large, southeast
-    path: 'M 295,210 L 310,215 L 328,210 L 342,200 L 358,210 L 378,225 L 395,255 L 388,290 L 368,315 L 340,322 L 315,310 L 298,290 L 292,265 L 298,245 L 290,225 L 290,210 Z',
+    labelX: 355,
+    labelY: 238,
+    // Bercy, Gare de Lyon, Bois de Vincennes, Nation — le plus grand
+    path: 'M 280,215 L 290,198 L 305,200 L 322,195 L 335,185 L 348,192 L 368,208 L 388,230 L 398,260 L 392,290 L 375,312 L 350,318 L 328,308 L 310,290 L 298,268 L 285,245 L 280,232 Z',
   },
 
-  // ── Rive Gauche extérieure (13e - 15e) ──
+  // ═══════════════════════════════════
+  // RIVE GAUCHE EXTÉRIEURE — 13e à 15e
+  // ═══════════════════════════════════
   {
     number: 13,
     name: '13e arrondissement',
     shortName: '13e',
     cityName: 'Paris 13e',
-    labelX: 275,
-    labelY: 310,
-    // Bibliothèque / Gobelins / Chinatown
-    path: 'M 240,258 L 255,268 L 275,272 L 292,265 L 298,290 L 315,310 L 310,330 L 288,342 L 260,340 L 235,325 L 222,305 L 225,280 L 225,265 Z',
+    labelX: 268,
+    labelY: 300,
+    // Bibliothèque, Gobelins, Chinatown, Butte-aux-Cailles
+    path: 'M 225,245 L 240,255 L 260,258 L 278,252 L 285,245 L 298,268 L 310,290 L 305,312 L 285,328 L 258,332 L 232,322 L 215,305 L 210,280 L 212,260 L 212,252 Z',
   },
   {
     number: 14,
     name: '14e arrondissement',
     shortName: '14e',
     cityName: 'Paris 14e',
-    labelX: 205,
-    labelY: 308,
-    // Montparnasse / Denfert — south-center
-    path: 'M 205,260 L 225,265 L 225,280 L 222,305 L 235,325 L 225,342 L 202,348 L 175,340 L 155,322 L 152,300 L 158,278 L 175,255 L 190,248 Z',
+    labelX: 188,
+    labelY: 298,
+    // Montparnasse, Denfert-Rochereau, Alésia, Parc Montsouris
+    path: 'M 178,238 L 195,248 L 212,252 L 212,260 L 210,280 L 215,305 L 205,322 L 185,335 L 160,332 L 140,318 L 132,298 L 135,275 L 148,252 L 165,250 Z',
   },
   {
     number: 15,
     name: '15e arrondissement',
     shortName: '15e',
     cityName: 'Paris 15e',
-    labelX: 140,
-    labelY: 282,
-    // Grenelle / Convention — large, southwest
-    path: 'M 130,195 L 128,215 L 138,232 L 155,248 L 175,255 L 158,278 L 152,300 L 155,322 L 140,330 L 115,320 L 92,295 L 85,265 L 88,235 L 98,215 L 112,200 Z',
+    labelX: 108,
+    labelY: 278,
+    // Grenelle, Convention, Vaugirard, Porte de Versailles — le plus peuplé
+    path: 'M 92,220 L 105,232 L 125,245 L 148,252 L 135,275 L 132,298 L 140,318 L 122,328 L 98,318 L 72,295 L 62,268 L 60,245 L 68,228 Z',
   },
 
-  // ── Rive Droite extérieure (16e - 20e) ──
+  // ═══════════════════════════════════
+  // RIVE DROITE EXTÉRIEURE — 16e à 20e
+  // ═══════════════════════════════════
   {
     number: 16,
     name: '16e arrondissement',
     shortName: '16e',
     cityName: 'Paris 16e',
-    labelX: 88,
-    labelY: 185,
-    // Trocadéro / Auteuil / Passy — large, west
-    path: 'M 60,125 L 90,108 L 115,110 L 130,125 L 130,155 L 122,175 L 130,195 L 112,200 L 98,215 L 88,235 L 85,265 L 68,252 L 48,225 L 38,195 L 40,160 L 48,138 Z',
+    labelX: 62,
+    labelY: 178,
+    // Trocadéro, Auteuil, Passy, Bois de Boulogne — le plus chic
+    path: 'M 35,118 L 58,102 L 82,98 L 102,105 L 110,120 L 102,165 L 95,190 L 102,208 L 92,220 L 68,228 L 60,245 L 45,232 L 28,210 L 20,185 L 22,155 L 28,135 Z',
   },
   {
     number: 17,
     name: '17e arrondissement',
     shortName: '17e',
     cityName: 'Paris 17e',
-    labelX: 168,
-    labelY: 105,
-    // Batignolles / Ternes / Épinettes — north-northwest
-    path: 'M 115,110 L 130,98 L 155,82 L 185,75 L 215,78 L 232,88 L 232,108 L 232,132 L 210,138 L 200,148 L 182,140 L 158,142 L 130,155 L 130,125 Z',
+    labelX: 148,
+    labelY: 100,
+    // Batignolles, Ternes, Épinettes, Parc Monceau nord
+    path: 'M 82,98 L 105,85 L 135,72 L 168,68 L 198,72 L 218,82 L 220,100 L 225,130 L 208,128 L 192,132 L 182,140 L 165,135 L 142,138 L 118,148 L 102,165 L 110,120 L 102,105 Z',
   },
   {
     number: 18,
     name: '18e arrondissement',
     shortName: '18e',
     cityName: 'Paris 18e',
-    labelX: 265,
-    labelY: 95,
-    // Montmartre / Goutte d'Or / Clignancourt — north
-    path: 'M 232,108 L 232,88 L 248,78 L 272,72 L 300,75 L 320,85 L 330,100 L 322,115 L 312,132 L 300,120 L 278,118 L 258,128 L 248,138 L 232,132 Z',
+    labelX: 252,
+    labelY: 88,
+    // Montmartre, Sacré-Cœur, Goutte d'Or, Clignancourt, Barbès
+    path: 'M 218,82 L 235,72 L 258,65 L 285,62 L 308,68 L 322,78 L 325,92 L 318,108 L 302,135 L 298,120 L 282,115 L 262,118 L 245,125 L 235,138 L 225,130 L 220,100 Z',
   },
   {
     number: 19,
     name: '19e arrondissement',
     shortName: '19e',
     cityName: 'Paris 19e',
-    labelX: 355,
-    labelY: 115,
-    // Buttes-Chaumont / Villette / Stalingrad — northeast
-    path: 'M 330,100 L 345,92 L 368,90 L 390,100 L 400,118 L 395,140 L 380,158 L 360,168 L 342,162 L 325,152 L 308,148 L 312,132 L 322,115 Z',
+    labelX: 352,
+    labelY: 102,
+    // Buttes-Chaumont, La Villette, Stalingrad, Parc de la Villette
+    path: 'M 322,78 L 342,72 L 368,70 L 392,78 L 408,92 L 410,115 L 402,138 L 388,158 L 368,168 L 348,172 L 335,148 L 318,138 L 302,135 L 318,108 L 325,92 Z',
   },
   {
     number: 20,
     name: '20e arrondissement',
     shortName: '20e',
     cityName: 'Paris 20e',
-    labelX: 378,
-    labelY: 195,
-    // Belleville / Ménilmontant / Père-Lachaise — east
-    path: 'M 342,162 L 360,168 L 380,158 L 395,140 L 408,155 L 415,178 L 412,205 L 398,228 L 378,225 L 358,210 L 342,200 L 348,180 Z',
+    labelX: 372,
+    labelY: 185,
+    // Belleville, Ménilmontant, Père-Lachaise, Gambetta, Nation
+    path: 'M 335,148 L 348,172 L 368,168 L 388,158 L 402,138 L 412,155 L 418,178 L 415,205 L 400,228 L 388,230 L 368,208 L 348,192 L 340,165 Z',
   },
 ];
 
-// Seine river path (decorative overlay)
-export const SEINE_PATH = 'M 38,195 C 65,195 88,200 112,200 C 128,198 130,195 152,182 C 168,175 175,178 192,182 L 198,195 L 205,210 L 220,215 L 238,218 L 250,218 L 250,210 L 255,195 L 260,222 L 278,218 L 290,225 L 298,245 L 310,215 L 328,210 L 342,200 L 358,210 L 378,225 L 395,255';
+// ────────────────────────────────────────────────────────
+// La Seine — tracé décoratif traversant Paris du SE au SW
+// ────────────────────────────────────────────────────────
+export const SEINE_PATH = 'M 20,185 C 35,192 52,210 68,228 C 78,218 88,215 92,220 L 102,208 C 112,202 128,198 150,195 L 170,195 L 195,200 L 228,200 L 238,202 L 255,205 L 275,202 L 280,215 C 295,225 310,235 320,230 C 340,240 365,255 388,230 C 395,245 398,260 398,260';
 
 // ══════════════════════════════════════════
 // Arrondissement name helper
@@ -289,14 +316,23 @@ export function aggregateByArrondissements(
 
     for (const arr of PARIS_ARRONDISSEMENTS) {
       const arrNorm = arr.cityName.toLowerCase();
-      // Exact match or common variants
+      const numStr = String(arr.number);
+      // Match many possible formats: "Paris 3e", "Paris 3", "paris 3ème", etc.
       if (
         normalized === arrNorm ||
-        normalized === `paris ${arr.number}` ||
+        normalized === `paris ${numStr}` ||
         normalized === `paris ${arr.shortName.toLowerCase()}` ||
-        normalized === `${arr.number}e arrondissement` ||
-        normalized === `${arr.number}ème arrondissement` ||
-        (arr.number === 1 && (normalized === 'paris 1' || normalized === 'paris 1er' || normalized === '1er arrondissement'))
+        normalized === `paris ${numStr}e` ||
+        normalized === `paris ${numStr}ème` ||
+        normalized === `paris ${numStr}eme` ||
+        normalized === `${numStr}e arrondissement` ||
+        normalized === `${numStr}ème arrondissement` ||
+        (arr.number === 1 && (
+          normalized === 'paris 1' ||
+          normalized === 'paris 1er' ||
+          normalized === '1er arrondissement' ||
+          normalized === 'paris 1er arrondissement'
+        ))
       ) {
         const agg = arrMap.get(arr.number)!;
         agg.totalRestaurants += city.totalRestaurants;

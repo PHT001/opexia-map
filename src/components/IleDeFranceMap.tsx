@@ -84,7 +84,18 @@ export default function IleDeFranceMap({ departmentData, onNavigateToCity, arron
     for (const dept of IDF_DEPARTMENTS) {
       const agg = departmentData.get(dept.code);
       const hasData = agg?.hasData ?? false;
-      if (!hasData) {
+      const isParis = dept.code === '75' && !!arrondissementData;
+
+      if (isParis && !hasData) {
+        // Paris always shows as interactive (blue accent) even without data
+        styles.set(dept.code, {
+          fill: 'rgba(94,158,255,0.08)',
+          fillHover: 'rgba(94,158,255,0.18)',
+          stroke: 'rgba(94,158,255,0.25)',
+          strokeHover: 'rgba(94,158,255,0.6)',
+          hasData: false,
+        });
+      } else if (!hasData) {
         styles.set(dept.code, {
           fill: 'rgba(255,255,255,0.04)',
           fillHover: 'rgba(255,255,255,0.10)',
@@ -106,7 +117,7 @@ export default function IleDeFranceMap({ departmentData, onNavigateToCity, arron
       }
     }
     return styles;
-  }, [departmentData]);
+  }, [departmentData, arrondissementData]);
 
   // Pre-compute bounding boxes
   const deptBBoxes = useMemo(() => {
@@ -183,14 +194,16 @@ export default function IleDeFranceMap({ departmentData, onNavigateToCity, arron
 
   const handleDeptClick = useCallback((code: string) => {
     const dept = departmentData.get(code);
-    if (!dept?.hasData) return;
+    // Allow Paris (75) to always be clickable for arrondissement view
+    const isParis = code === '75' && !!arrondissementData;
+    if (!dept?.hasData && !isParis) return;
 
     if (isZoomed && selectedDept === code) {
       zoomOut();
     } else {
       zoomToDept(code);
     }
-  }, [departmentData, isZoomed, selectedDept, zoomToDept, zoomOut]);
+  }, [departmentData, arrondissementData, isZoomed, selectedDept, zoomToDept, zoomOut]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -243,7 +256,7 @@ export default function IleDeFranceMap({ departmentData, onNavigateToCity, arron
                 strokeLinejoin="round"
                 className="dept-path"
                 style={{
-                  cursor: s.hasData ? 'pointer' : 'default',
+                  cursor: (s.hasData || (dept.code === '75' && !!arrondissementData)) ? 'pointer' : 'default',
                   transition: 'fill 0.25s ease, stroke 0.25s ease, stroke-width 0.15s ease',
                 }}
                 onMouseMove={(e) => handleMouseMove(e, dept.code)}
@@ -261,7 +274,9 @@ export default function IleDeFranceMap({ departmentData, onNavigateToCity, arron
                 fill={
                   s.hasData
                     ? active ? 'rgba(248,113,113,1)' : 'rgba(248,113,113,0.85)'
-                    : isHovered ? 'rgba(255,255,255,0.45)' : 'rgba(255,255,255,0.2)'
+                    : (dept.code === '75' && !!arrondissementData)
+                      ? active ? 'rgba(94,158,255,1)' : 'rgba(94,158,255,0.7)'
+                      : isHovered ? 'rgba(255,255,255,0.45)' : 'rgba(255,255,255,0.2)'
                 }
                 style={{ pointerEvents: 'none', userSelect: 'none', transition: 'fill 0.25s ease' }}
               >
@@ -275,7 +290,11 @@ export default function IleDeFranceMap({ departmentData, onNavigateToCity, arron
                 fontSize="6.5"
                 fontWeight="500"
                 fontFamily="SF Pro Display, -apple-system, system-ui, sans-serif"
-                fill={s.hasData ? 'rgba(248,113,113,0.6)' : 'rgba(255,255,255,0.12)'}
+                fill={
+                  s.hasData ? 'rgba(248,113,113,0.6)'
+                    : (dept.code === '75' && !!arrondissementData) ? 'rgba(94,158,255,0.45)'
+                    : 'rgba(255,255,255,0.12)'
+                }
                 style={{ pointerEvents: 'none', userSelect: 'none', transition: 'fill 0.25s ease' }}
               >
                 {dept.shortName}
@@ -340,6 +359,13 @@ export default function IleDeFranceMap({ departmentData, onNavigateToCity, arron
               )}
               <div className="mt-1.5 text-[10px] text-blue">
                 Cliquer pour zoomer →
+              </div>
+            </>
+          ) : hoveredDept === '75' && arrondissementData ? (
+            <>
+              <p className="text-[11px] text-text-muted mt-0.5">20 arrondissements à explorer</p>
+              <div className="mt-1 text-[10px] text-blue">
+                Cliquer pour voir les arrondissements →
               </div>
             </>
           ) : (
