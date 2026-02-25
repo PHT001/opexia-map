@@ -288,22 +288,34 @@ export function aggregateByArrondissements(
   for (const city of cityAggregates) {
     const normalized = city.city.trim().toLowerCase();
 
+    // Extract number from city name like "Paris 4", "Paris 17e", "Paris 1er", etc.
+    const parisMatch = normalized.match(/^paris\s+(\d{1,2})\s*(?:e|er|ème|eme|è|ème)?$/i);
+    if (parisMatch) {
+      const arrNum = parseInt(parisMatch[1], 10);
+      if (arrNum >= 1 && arrNum <= 20) {
+        const agg = arrMap.get(arrNum)!;
+        agg.totalRestaurants += city.totalRestaurants;
+        agg.totalOpportunities += city.opportunityCount;
+        agg.types = [...new Set([...agg.types, ...city.types])];
+        agg.hasData = true;
+        if (city.avgRating > 0) {
+          agg.avgRating = agg.avgRating > 0
+            ? (agg.avgRating + city.avgRating) / 2
+            : city.avgRating;
+        }
+        continue;
+      }
+    }
+
+    // Also try exact match formats
     for (const arr of PARIS_ARRONDISSEMENTS) {
       const arrNorm = arr.cityName.toLowerCase();
       const numStr = String(arr.number);
-      // Match many possible formats
       if (
         normalized === arrNorm ||
-        normalized === `paris ${numStr}` ||
-        normalized === `paris ${arr.shortName.toLowerCase()}` ||
-        normalized === `paris ${numStr}e` ||
-        normalized === `paris ${numStr}ème` ||
-        normalized === `paris ${numStr}eme` ||
         normalized === `${numStr}e arrondissement` ||
         normalized === `${numStr}ème arrondissement` ||
         (arr.number === 1 && (
-          normalized === 'paris 1' ||
-          normalized === 'paris 1er' ||
           normalized === '1er arrondissement' ||
           normalized === 'paris 1er arrondissement'
         ))

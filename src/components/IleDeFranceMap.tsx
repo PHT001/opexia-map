@@ -421,8 +421,8 @@ export default function IleDeFranceMap({ departmentData, onNavigateToCity, arron
         </div>
       )}
 
-      {/* Standard city panel — for all other departments */}
-      {isZoomed && showPanel && selectedData && !(selectedDept === '75' && arrondissementData) && (
+      {/* Standard city panel — for all other departments (NEVER for Paris 75) */}
+      {isZoomed && showPanel && selectedData && selectedDept !== '75' && (
         <div
           className="absolute top-0 right-0 w-72 h-full map-city-panel"
           style={{
