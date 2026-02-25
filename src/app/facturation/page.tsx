@@ -103,7 +103,7 @@ function PrintPreviewModal({
       <body>
         <div class="header">
           <div>
-            <div class="brand">REEL<span>CRM</span></div>
+            <div class="brand">Opex<span>IA</span></div>
             <div style="font-size:11px;color:#666;margin-top:4px;">Gestion commerciale</div>
           </div>
           <div>
@@ -189,7 +189,7 @@ function PrintPreviewModal({
             {/* Preview header */}
             <div className="flex justify-between items-start">
               <div>
-                <p className="text-base font-bold text-text">REELCRM</p>
+                <p className="text-base font-bold text-text">Opex<span style={{ background: 'linear-gradient(90deg, #2997FF, #5AC8FA)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>IA</span></p>
                 <p className="text-[11px] text-text-dim">Gestion commerciale</p>
               </div>
               <div className="text-right">

@@ -40,7 +40,7 @@ export default function SettingsPage() {
     <div className="p-8 space-y-6 max-w-3xl fade-in">
       <div>
         <h1 className="text-xl font-bold text-text">Paramètres</h1>
-        <p className="text-xs text-text-muted mt-1">Configuration de votre espace REELCRM</p>
+        <p className="text-xs text-text-muted mt-1">Configuration de votre espace OpexIA</p>
       </div>
 
       {/* Profile */}
