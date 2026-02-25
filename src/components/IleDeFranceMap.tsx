@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useMemo } from 'react';
 import { X, TrendingUp, MapPin } from 'lucide-react';
 import { IDF_DEPARTMENTS, DepartmentAggregate } from '@/lib/idf-departments';
 import { getTypeEmoji } from '@/lib/utils';
@@ -16,24 +16,34 @@ export default function IleDeFranceMap({ departmentData, onNavigateToCity }: Ile
   const [selectedDept, setSelectedDept] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const getDeptFill = useCallback((code: string, isHovered: boolean): string => {
-    const dept = departmentData.get(code);
-    if (!dept?.hasData) {
-      return isHovered ? 'rgba(255,255,255,0.10)' : 'rgba(255,255,255,0.04)';
+  // Pre-compute department styles to avoid recalc on every render
+  const deptStyles = useMemo(() => {
+    const styles = new Map<string, { fill: string; fillHover: string; stroke: string; strokeHover: string; hasData: boolean }>();
+    for (const dept of IDF_DEPARTMENTS) {
+      const agg = departmentData.get(dept.code);
+      const hasData = agg?.hasData ?? false;
+      if (!hasData) {
+        styles.set(dept.code, {
+          fill: 'rgba(255,255,255,0.04)',
+          fillHover: 'rgba(255,255,255,0.10)',
+          stroke: 'rgba(255,255,255,0.08)',
+          strokeHover: 'rgba(255,255,255,0.18)',
+          hasData: false,
+        });
+      } else {
+        const intensity = Math.min((agg?.totalOpportunities ?? 0) / 10, 1);
+        const baseAlpha = 0.2 + intensity * 0.2;
+        const hoverAlpha = baseAlpha + 0.2;
+        styles.set(dept.code, {
+          fill: `rgba(248,113,113,${baseAlpha.toFixed(2)})`,
+          fillHover: `rgba(248,113,113,${hoverAlpha.toFixed(2)})`,
+          stroke: 'rgba(248,113,113,0.35)',
+          strokeHover: 'rgba(248,113,113,0.8)',
+          hasData: true,
+        });
+      }
     }
-    // Intensity based on opportunity count
-    const intensity = Math.min(dept.totalOpportunities / 10, 1);
-    const baseAlpha = 0.2 + intensity * 0.2;
-    const hoverAlpha = baseAlpha + 0.2;
-    return isHovered
-      ? `rgba(248,113,113,${hoverAlpha.toFixed(2)})`
-      : `rgba(248,113,113,${baseAlpha.toFixed(2)})`;
-  }, [departmentData]);
-
-  const getDeptStroke = useCallback((code: string, isHovered: boolean): string => {
-    const dept = departmentData.get(code);
-    if (!dept?.hasData) return isHovered ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.08)';
-    return isHovered ? 'rgba(248,113,113,0.8)' : 'rgba(248,113,113,0.35)';
+    return styles;
   }, [departmentData]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent, code: string) => {
@@ -42,7 +52,6 @@ export default function IleDeFranceMap({ departmentData, onNavigateToCity }: Ile
       const rect = containerRef.current.getBoundingClientRect();
       const x = e.clientX - rect.left + 14;
       const y = e.clientY - rect.top - 10;
-      // Prevent tooltip overflow
       const maxX = rect.width - 270;
       const maxY = rect.height - 140;
       setTooltipPos({
@@ -68,13 +77,12 @@ export default function IleDeFranceMap({ departmentData, onNavigateToCity }: Ile
 
   return (
     <div ref={containerRef} className="relative w-full">
-      {/* SVG Map — full width, no max height restriction */}
+      {/* SVG Map */}
       <svg
         viewBox="0 0 520 460"
         className="w-full h-auto"
         preserveAspectRatio="xMidYMid meet"
       >
-        {/* Background grid dots for visual depth */}
         <defs>
           <pattern id="mapGrid" width="20" height="20" patternUnits="userSpaceOnUse">
             <circle cx="10" cy="10" r="0.5" fill="rgba(255,255,255,0.04)" />
@@ -82,27 +90,24 @@ export default function IleDeFranceMap({ departmentData, onNavigateToCity }: Ile
         </defs>
         <rect width="520" height="460" fill="url(#mapGrid)" />
 
-        {/* Department paths — render outer first, inner last for z-order */}
         {IDF_DEPARTMENTS.map(dept => {
           const isHovered = hoveredDept === dept.code;
           const isSelected = selectedDept === dept.code;
-          const agg = departmentData.get(dept.code);
+          const active = isHovered || isSelected;
+          const s = deptStyles.get(dept.code)!;
 
           return (
             <g key={dept.code}>
               <path
                 d={dept.path}
-                fill={getDeptFill(dept.code, isHovered || isSelected)}
-                stroke={getDeptStroke(dept.code, isHovered || isSelected)}
-                strokeWidth={isHovered || isSelected ? 2 : 1}
+                fill={active ? s.fillHover : s.fill}
+                stroke={active ? s.strokeHover : s.stroke}
+                strokeWidth={active ? 2 : 1}
                 strokeLinejoin="round"
                 className="dept-path"
                 style={{
-                  cursor: agg?.hasData ? 'pointer' : 'default',
-                  transition: 'fill 0.3s ease, stroke 0.3s ease, filter 0.3s ease, stroke-width 0.2s ease',
-                  filter: (isHovered || isSelected) && agg?.hasData
-                    ? 'drop-shadow(0 0 12px rgba(248,113,113,0.5))'
-                    : 'none',
+                  cursor: s.hasData ? 'pointer' : 'default',
+                  transition: 'fill 0.25s ease, stroke 0.25s ease, stroke-width 0.15s ease',
                 }}
                 onMouseMove={(e) => handleMouseMove(e, dept.code)}
                 onMouseLeave={() => setHoveredDept(null)}
@@ -118,19 +123,15 @@ export default function IleDeFranceMap({ departmentData, onNavigateToCity }: Ile
                 fontWeight="700"
                 fontFamily="SF Pro Display, -apple-system, system-ui, sans-serif"
                 fill={
-                  agg?.hasData
-                    ? isHovered || isSelected
-                      ? 'rgba(248,113,113,1)'
-                      : 'rgba(248,113,113,0.85)'
-                    : isHovered
-                      ? 'rgba(255,255,255,0.45)'
-                      : 'rgba(255,255,255,0.2)'
+                  s.hasData
+                    ? active ? 'rgba(248,113,113,1)' : 'rgba(248,113,113,0.85)'
+                    : isHovered ? 'rgba(255,255,255,0.45)' : 'rgba(255,255,255,0.2)'
                 }
-                style={{ pointerEvents: 'none', userSelect: 'none', transition: 'fill 0.3s ease' }}
+                style={{ pointerEvents: 'none', userSelect: 'none', transition: 'fill 0.25s ease' }}
               >
                 {dept.code}
               </text>
-              {/* Department name under the code */}
+              {/* Department name */}
               <text
                 x={dept.labelX}
                 y={dept.labelY + 13}
@@ -139,13 +140,13 @@ export default function IleDeFranceMap({ departmentData, onNavigateToCity }: Ile
                 fontSize="6.5"
                 fontWeight="500"
                 fontFamily="SF Pro Display, -apple-system, system-ui, sans-serif"
-                fill={agg?.hasData ? 'rgba(248,113,113,0.6)' : 'rgba(255,255,255,0.12)'}
-                style={{ pointerEvents: 'none', userSelect: 'none', transition: 'fill 0.3s ease' }}
+                fill={s.hasData ? 'rgba(248,113,113,0.6)' : 'rgba(255,255,255,0.12)'}
+                style={{ pointerEvents: 'none', userSelect: 'none', transition: 'fill 0.25s ease' }}
               >
                 {dept.shortName}
               </text>
-              {/* Data indicator dot */}
-              {agg?.hasData && (
+              {/* Data indicator — simple static dot with CSS opacity pulse */}
+              {s.hasData && (
                 <circle
                   cx={dept.labelX + 18}
                   cy={dept.labelY - 8}
@@ -153,15 +154,23 @@ export default function IleDeFranceMap({ departmentData, onNavigateToCity }: Ile
                   fill="rgba(248,113,113,0.6)"
                   stroke="rgba(248,113,113,0.3)"
                   strokeWidth="2"
-                  style={{ pointerEvents: 'none' }}
-                >
-                  <animate attributeName="r" values="3;5;3" dur="2s" repeatCount="indefinite" />
-                  <animate attributeName="opacity" values="1;0.5;1" dur="2s" repeatCount="indefinite" />
-                </circle>
+                  style={{
+                    pointerEvents: 'none',
+                    animation: 'dotPulse 2.5s ease-in-out infinite',
+                  }}
+                />
               )}
             </g>
           );
         })}
+
+        {/* CSS animation for dot pulse — lightweight opacity only */}
+        <style>{`
+          @keyframes dotPulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+          }
+        `}</style>
       </svg>
 
       {/* Floating Tooltip */}
@@ -209,15 +218,15 @@ export default function IleDeFranceMap({ departmentData, onNavigateToCity }: Ile
         </div>
       )}
 
-      {/* Multi-city sidebar panel */}
+      {/* Multi-city sidebar panel — optimized: no backdrop-filter */}
       {selectedDept && selectedData && selectedData.cities.length > 1 && (
         <div
           className="absolute top-0 right-0 w-64 h-full map-city-panel"
           style={{
-            background: 'rgba(12,12,20,0.95)',
-            backdropFilter: 'blur(24px)',
+            background: 'rgba(12,12,20,0.97)',
             border: '1px solid rgba(255,255,255,0.1)',
             borderRadius: '16px',
+            boxShadow: '0 16px 48px rgba(0,0,0,0.6)',
           }}
         >
           <div className="p-4 flex flex-col gap-3 h-full overflow-y-auto">
@@ -245,12 +254,12 @@ export default function IleDeFranceMap({ departmentData, onNavigateToCity }: Ile
               )}
             </div>
 
-            {/* City list */}
+            {/* City list — staggered entrance */}
             <div className="space-y-2 flex-1">
               {selectedData.cities.map(city => (
                 <button
                   key={city.city}
-                  className="w-full text-left p-3 rounded-xl transition-all hover:bg-white/[0.06]"
+                  className="city-btn w-full text-left p-3 rounded-xl transition-colors hover:bg-white/[0.06]"
                   style={{ border: '1px solid rgba(255,255,255,0.06)' }}
                   onClick={() => onNavigateToCity(city.city)}
                 >
