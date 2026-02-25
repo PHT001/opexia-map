@@ -389,29 +389,25 @@ export default function IleDeFranceMap({ departmentData, onNavigateToCity, arron
       )}
 
       {/* Paris arrondissements panel — special case for dept 75 */}
-      {isZoomed && showPanel && selectedData && selectedDept === '75' && arrondissementData && (
+      {isZoomed && showPanel && selectedDept === '75' && arrondissementData && (
         <div
           className="absolute top-0 right-0 h-full map-city-panel"
           style={{
-            width: '420px',
-            background: 'rgba(12,12,20,0.97)',
-            border: '1px solid rgba(255,255,255,0.1)',
+            width: '460px',
+            background: 'rgba(6,6,14,0.98)',
+            border: '1px solid rgba(232,67,147,0.12)',
             borderRadius: '16px',
-            boxShadow: '0 16px 48px rgba(0,0,0,0.6)',
+            boxShadow: '0 16px 48px rgba(0,0,0,0.7), 0 0 60px rgba(232,67,147,0.04)',
           }}
         >
-          <div className="p-4 flex flex-col h-full">
-            {/* Header */}
-            <div className="flex items-center justify-between mb-2">
-              <div>
-                <p className="text-[9px] text-text-dim uppercase tracking-wider">Paris (75)</p>
-                <p className="text-[15px] font-bold text-text">Arrondissements</p>
-              </div>
+          <div className="p-5 flex flex-col h-full">
+            {/* Close button */}
+            <div className="flex justify-end mb-1">
               <button
                 onClick={zoomOut}
                 className="p-1.5 rounded-lg hover:bg-white/[0.06] transition-colors"
               >
-                <X className="w-4 h-4 text-text-dim" />
+                <X className="w-4 h-4 text-white/30 hover:text-white/60" />
               </button>
             </div>
             {/* Arrondissement map fills the rest */}
