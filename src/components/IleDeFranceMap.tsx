@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useRef, useCallback, useMemo } from 'react';
-import { X, TrendingUp, MapPin } from 'lucide-react';
+import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
+import { X, TrendingUp, MapPin, ArrowRight } from 'lucide-react';
 import { IDF_DEPARTMENTS, DepartmentAggregate } from '@/lib/idf-departments';
 import { getTypeEmoji } from '@/lib/utils';
 
@@ -10,13 +10,72 @@ interface IleDeFranceMapProps {
   onNavigateToCity: (city: string) => void;
 }
 
+// Parse SVG path to get bounding box
+function getPathBBox(path: string): { cx: number; cy: number; x: number; y: number; w: number; h: number } {
+  const nums = path.match(/[\d.]+/g)?.map(Number) ?? [];
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (let i = 0; i < nums.length; i += 2) {
+    const x = nums[i], y = nums[i + 1];
+    if (x < minX) minX = x;
+    if (x > maxX) maxX = x;
+    if (y < minY) minY = y;
+    if (y > maxY) maxY = y;
+  }
+  return { cx: (minX + maxX) / 2, cy: (minY + maxY) / 2, x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+}
+
+// Smooth easing function (ease-out cubic)
+function easeOutCubic(t: number): number {
+  return 1 - Math.pow(1 - t, 3);
+}
+
+const DEFAULT_VB = { x: 0, y: 0, w: 520, h: 460 };
+const ZOOM_DURATION = 500; // ms
+
+interface ViewBox { x: number; y: number; w: number; h: number }
+
 export default function IleDeFranceMap({ departmentData, onNavigateToCity }: IleDeFranceMapProps) {
   const [hoveredDept, setHoveredDept] = useState<string | null>(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
   const [selectedDept, setSelectedDept] = useState<string | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [isZoomed, setIsZoomed] = useState(false);
+  const [showPanel, setShowPanel] = useState(false);
 
-  // Pre-compute department styles to avoid recalc on every render
+  // Animated viewBox
+  const [viewBox, setViewBox] = useState<ViewBox>(DEFAULT_VB);
+  const animRef = useRef<number | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const panelTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Animate viewBox from current to target
+  const animateViewBox = useCallback((from: ViewBox, to: ViewBox, onDone?: () => void) => {
+    if (animRef.current) cancelAnimationFrame(animRef.current);
+    const start = performance.now();
+
+    const tick = (now: number) => {
+      const elapsed = now - start;
+      const progress = Math.min(elapsed / ZOOM_DURATION, 1);
+      const t = easeOutCubic(progress);
+
+      setViewBox({
+        x: from.x + (to.x - from.x) * t,
+        y: from.y + (to.y - from.y) * t,
+        w: from.w + (to.w - from.w) * t,
+        h: from.h + (to.h - from.h) * t,
+      });
+
+      if (progress < 1) {
+        animRef.current = requestAnimationFrame(tick);
+      } else {
+        animRef.current = null;
+        onDone?.();
+      }
+    };
+
+    animRef.current = requestAnimationFrame(tick);
+  }, []);
+
+  // Pre-compute department styles
   const deptStyles = useMemo(() => {
     const styles = new Map<string, { fill: string; fillHover: string; stroke: string; strokeHover: string; hasData: boolean }>();
     for (const dept of IDF_DEPARTMENTS) {
@@ -46,7 +105,17 @@ export default function IleDeFranceMap({ departmentData, onNavigateToCity }: Ile
     return styles;
   }, [departmentData]);
 
+  // Pre-compute bounding boxes
+  const deptBBoxes = useMemo(() => {
+    const boxes = new Map<string, ReturnType<typeof getPathBBox>>();
+    for (const dept of IDF_DEPARTMENTS) {
+      boxes.set(dept.code, getPathBBox(dept.path));
+    }
+    return boxes;
+  }, []);
+
   const handleMouseMove = useCallback((e: React.MouseEvent, code: string) => {
+    if (isZoomed) return;
     setHoveredDept(code);
     if (containerRef.current) {
       const rect = containerRef.current.getBoundingClientRect();
@@ -59,28 +128,86 @@ export default function IleDeFranceMap({ departmentData, onNavigateToCity }: Ile
         y: y > maxY ? y - 120 : y < 0 ? 10 : y,
       });
     }
-  }, []);
+  }, [isZoomed]);
+
+  const zoomToDept = useCallback((code: string) => {
+    const bbox = deptBBoxes.get(code);
+    if (!bbox) return;
+
+    const padding = 60;
+    const x = bbox.x - padding;
+    const y = bbox.y - padding;
+    const w = bbox.w + padding * 2;
+    const h = bbox.h + padding * 2;
+
+    // Keep aspect ratio
+    const targetRatio = 520 / 460;
+    let finalW = w, finalH = h, finalX = x, finalY = y;
+    if (w / h > targetRatio) {
+      finalH = w / targetRatio;
+      finalY = y - (finalH - h) / 2;
+    } else {
+      finalW = h * targetRatio;
+      finalX = x - (finalW - w) / 2;
+    }
+
+    const target = { x: finalX, y: finalY, w: finalW, h: finalH };
+
+    setIsZoomed(true);
+    setSelectedDept(code);
+    setHoveredDept(null);
+    setShowPanel(false);
+
+    // Animate zoom
+    animateViewBox(viewBox, target, () => {
+      // Show panel after zoom finishes
+      if (panelTimeoutRef.current) clearTimeout(panelTimeoutRef.current);
+      panelTimeoutRef.current = setTimeout(() => setShowPanel(true), 50);
+    });
+  }, [deptBBoxes, viewBox, animateViewBox]);
+
+  const zoomOut = useCallback(() => {
+    setShowPanel(false);
+
+    // Small delay for panel to fade, then animate zoom out
+    setTimeout(() => {
+      animateViewBox(viewBox, DEFAULT_VB, () => {
+        setIsZoomed(false);
+        setSelectedDept(null);
+      });
+    }, 120);
+  }, [viewBox, animateViewBox]);
 
   const handleDeptClick = useCallback((code: string) => {
     const dept = departmentData.get(code);
     if (!dept?.hasData) return;
 
-    if (dept.cities.length === 1) {
-      onNavigateToCity(dept.cities[0].city);
+    if (isZoomed && selectedDept === code) {
+      zoomOut();
     } else {
-      setSelectedDept(prev => prev === code ? null : code);
+      zoomToDept(code);
     }
-  }, [departmentData, onNavigateToCity]);
+  }, [departmentData, isZoomed, selectedDept, zoomToDept, zoomOut]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (panelTimeoutRef.current) clearTimeout(panelTimeoutRef.current);
+      if (animRef.current) cancelAnimationFrame(animRef.current);
+    };
+  }, []);
 
   const hoveredData = hoveredDept ? departmentData.get(hoveredDept) : null;
   const selectedData = selectedDept ? departmentData.get(selectedDept) : null;
+
+  const vbStr = `${viewBox.x} ${viewBox.y} ${viewBox.w} ${viewBox.h}`;
 
   return (
     <div ref={containerRef} className="relative w-full">
       {/* SVG Map */}
       <svg
-        viewBox="0 0 520 460"
-        className="w-full h-auto"
+        viewBox={vbStr}
+        className="w-full h-auto map-svg"
         preserveAspectRatio="xMidYMid meet"
       >
         <defs>
@@ -88,16 +215,23 @@ export default function IleDeFranceMap({ departmentData, onNavigateToCity }: Ile
             <circle cx="10" cy="10" r="0.5" fill="rgba(255,255,255,0.04)" />
           </pattern>
         </defs>
-        <rect width="520" height="460" fill="url(#mapGrid)" />
+        <rect x="-100" y="-100" width="720" height="660" fill="url(#mapGrid)" />
 
         {IDF_DEPARTMENTS.map(dept => {
           const isHovered = hoveredDept === dept.code;
           const isSelected = selectedDept === dept.code;
           const active = isHovered || isSelected;
           const s = deptStyles.get(dept.code)!;
+          const dimmed = isZoomed && !isSelected;
 
           return (
-            <g key={dept.code}>
+            <g
+              key={dept.code}
+              style={{
+                opacity: dimmed ? 0.15 : 1,
+                transition: 'opacity 0.4s ease',
+              }}
+            >
               <path
                 d={dept.path}
                 fill={active ? s.fillHover : s.fill}
@@ -110,10 +244,9 @@ export default function IleDeFranceMap({ departmentData, onNavigateToCity }: Ile
                   transition: 'fill 0.25s ease, stroke 0.25s ease, stroke-width 0.15s ease',
                 }}
                 onMouseMove={(e) => handleMouseMove(e, dept.code)}
-                onMouseLeave={() => setHoveredDept(null)}
+                onMouseLeave={() => !isZoomed && setHoveredDept(null)}
                 onClick={() => handleDeptClick(dept.code)}
               />
-              {/* Department code label */}
               <text
                 x={dept.labelX}
                 y={dept.labelY}
@@ -131,7 +264,6 @@ export default function IleDeFranceMap({ departmentData, onNavigateToCity }: Ile
               >
                 {dept.code}
               </text>
-              {/* Department name */}
               <text
                 x={dept.labelX}
                 y={dept.labelY + 13}
@@ -145,8 +277,7 @@ export default function IleDeFranceMap({ departmentData, onNavigateToCity }: Ile
               >
                 {dept.shortName}
               </text>
-              {/* Data indicator — simple static dot with CSS opacity pulse */}
-              {s.hasData && (
+              {s.hasData && !dimmed && (
                 <circle
                   cx={dept.labelX + 18}
                   cy={dept.labelY - 8}
@@ -154,17 +285,13 @@ export default function IleDeFranceMap({ departmentData, onNavigateToCity }: Ile
                   fill="rgba(248,113,113,0.6)"
                   stroke="rgba(248,113,113,0.3)"
                   strokeWidth="2"
-                  style={{
-                    pointerEvents: 'none',
-                    animation: 'dotPulse 2.5s ease-in-out infinite',
-                  }}
+                  style={{ pointerEvents: 'none', animation: 'dotPulse 2.5s ease-in-out infinite' }}
                 />
               )}
             </g>
           );
         })}
 
-        {/* CSS animation for dot pulse — lightweight opacity only */}
         <style>{`
           @keyframes dotPulse {
             0%, 100% { opacity: 1; }
@@ -173,8 +300,8 @@ export default function IleDeFranceMap({ departmentData, onNavigateToCity }: Ile
         `}</style>
       </svg>
 
-      {/* Floating Tooltip */}
-      {hoveredDept && hoveredData && !selectedDept && (
+      {/* Tooltip — only when NOT zoomed */}
+      {!isZoomed && hoveredDept && hoveredData && (
         <div
           className="map-tooltip"
           style={{ left: tooltipPos.x, top: tooltipPos.y }}
@@ -209,7 +336,7 @@ export default function IleDeFranceMap({ departmentData, onNavigateToCity }: Ile
                 </div>
               )}
               <div className="mt-1.5 text-[10px] text-blue">
-                {hoveredData.cities.length === 1 ? 'Cliquer pour voir les détails →' : 'Cliquer pour choisir une ville →'}
+                Cliquer pour zoomer →
               </div>
             </>
           ) : (
@@ -218,10 +345,24 @@ export default function IleDeFranceMap({ departmentData, onNavigateToCity }: Ile
         </div>
       )}
 
-      {/* Multi-city sidebar panel — optimized: no backdrop-filter */}
-      {selectedDept && selectedData && selectedData.cities.length > 1 && (
+      {/* Back button */}
+      {isZoomed && (
+        <button
+          onClick={zoomOut}
+          className="absolute top-4 left-4 z-20 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-medium text-text-muted hover:text-text map-back-btn transition-colors"
+          style={{
+            background: 'rgba(12,12,20,0.85)',
+            border: '1px solid rgba(255,255,255,0.1)',
+          }}
+        >
+          ← Retour
+        </button>
+      )}
+
+      {/* City panel */}
+      {isZoomed && showPanel && selectedData && (
         <div
-          className="absolute top-0 right-0 w-64 h-full map-city-panel"
+          className="absolute top-0 right-0 w-72 h-full map-city-panel"
           style={{
             background: 'rgba(12,12,20,0.97)',
             border: '1px solid rgba(255,255,255,0.1)',
@@ -234,10 +375,10 @@ export default function IleDeFranceMap({ departmentData, onNavigateToCity }: Ile
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-[9px] text-text-dim uppercase tracking-wider">Département {selectedData.code}</p>
-                <p className="text-[14px] font-bold text-text">{selectedData.name}</p>
+                <p className="text-[15px] font-bold text-text">{selectedData.name}</p>
               </div>
               <button
-                onClick={() => setSelectedDept(null)}
+                onClick={zoomOut}
                 className="p-1.5 rounded-lg hover:bg-white/[0.06] transition-colors"
               >
                 <X className="w-4 h-4 text-text-dim" />
@@ -249,17 +390,23 @@ export default function IleDeFranceMap({ departmentData, onNavigateToCity }: Ile
               <span className="text-text-muted">{selectedData.totalRestaurants} restaurants</span>
               {selectedData.totalOpportunities > 0 && (
                 <span className="text-red flex items-center gap-0.5">
-                  <TrendingUp className="w-3 h-3" /> {selectedData.totalOpportunities}
+                  <TrendingUp className="w-3 h-3" /> {selectedData.totalOpportunities} opp.
                 </span>
               )}
             </div>
 
-            {/* City list — staggered entrance */}
+            <div className="h-px bg-white/[0.06]" />
+
+            <p className="text-[10px] text-text-dim uppercase tracking-wider">
+              {selectedData.cities.length} ville{selectedData.cities.length > 1 ? 's' : ''}
+            </p>
+
+            {/* City list */}
             <div className="space-y-2 flex-1">
               {selectedData.cities.map(city => (
                 <button
                   key={city.city}
-                  className="city-btn w-full text-left p-3 rounded-xl transition-colors hover:bg-white/[0.06]"
+                  className="city-btn w-full text-left p-3 rounded-xl transition-colors hover:bg-white/[0.06] group"
                   style={{ border: '1px solid rgba(255,255,255,0.06)' }}
                   onClick={() => onNavigateToCity(city.city)}
                 >
@@ -267,12 +414,15 @@ export default function IleDeFranceMap({ departmentData, onNavigateToCity }: Ile
                     <span className="text-[12px] font-semibold text-text flex items-center gap-1.5">
                       <MapPin className="w-3 h-3 text-red" /> {city.city}
                     </span>
-                    {city.opportunityCount > 0 && (
-                      <span className="text-[10px] font-bold text-red">{city.opportunityCount} opp.</span>
-                    )}
+                    <div className="flex items-center gap-1.5">
+                      {city.opportunityCount > 0 && (
+                        <span className="text-[10px] font-bold text-red">{city.opportunityCount} opp.</span>
+                      )}
+                      <ArrowRight className="w-3 h-3 text-text-dim opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </div>
                   </div>
                   <p className="text-[10px] text-text-dim mt-0.5 ml-[18px]">
-                    {city.totalRestaurants} restaurants &middot; {city.types.slice(0, 3).join(', ')}
+                    {city.totalRestaurants} restaurants · {city.types.slice(0, 3).join(', ')}
                   </p>
                 </button>
               ))}
