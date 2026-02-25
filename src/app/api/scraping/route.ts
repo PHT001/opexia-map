@@ -1,6 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 
+export async function GET() {
+  return NextResponse.json({ status: 'ok', endpoint: '/api/scraping', methods: ['POST'] });
+}
+
 const SUPABASE_URL = 'https://hpunlrlvtkjifskigkca.supabase.co';
 const SUPABASE_SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhwdW5scmx2dGtqaWZza2lna2NhIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MTQ1MDUyNSwiZXhwIjoyMDg3MDI2NTI1fQ.UynQWotxzA9aQfsl6dwwbz-fbXO1qInwb3BfBuw8tyE';
 
