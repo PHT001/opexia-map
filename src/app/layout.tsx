@@ -1,17 +1,14 @@
-'use client';
-
 import type { Metadata } from "next";
 import "./globals.css";
 import Sidebar from "@/components/Sidebar";
 import AppShell from "@/components/AppShell";
-import { useEffect } from "react";
-import { seedData } from "@/lib/store";
+
+export const metadata: Metadata = {
+  title: "OpexIA",
+  description: "Business Manager",
+};
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  useEffect(() => {
-    seedData();
-  }, []);
-
   return (
     <html lang="fr">
       <body className="bg-bg min-h-screen">
