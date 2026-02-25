@@ -8,6 +8,13 @@ import { ScrapingSession, ScrapedRestaurant, ScrapingStatus } from '@/lib/types'
 import { aggregateByCities } from '@/lib/scraping-helpers';
 import { aggregateByDepartments } from '@/lib/idf-departments';
 import { aggregateByArrondissements } from '@/lib/paris-arrondissements';
+import { aggregateByCommunesVDM } from '@/lib/val-de-marne-communes';
+import { aggregateByCommunesSSD } from '@/lib/seine-saint-denis-communes';
+import { aggregateByCommunesHDS } from '@/lib/hauts-de-seine-communes';
+import { aggregateByCommunesESS } from '@/lib/essonne-communes';
+import { aggregateByCommunesSEM } from '@/lib/seine-et-marne-communes';
+import { aggregateByCommunesYVL } from '@/lib/yvelines-communes';
+import { aggregateByCommunesVDO } from '@/lib/val-d-oise-communes';
 import IleDeFranceMap from '@/components/IleDeFranceMap';
 import Modal from '@/components/Modal';
 
@@ -29,6 +36,7 @@ export default function ScrappingPage() {
   const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const [mapZoomed, setMapZoomed] = useState(false);
   const [form, setForm] = useState(emptySession);
   const [jsonInput, setJsonInput] = useState('');
   const router = useRouter();
@@ -42,10 +50,23 @@ export default function ScrappingPage() {
 
   useEffect(() => { reload().then(() => setMounted(true)); }, [reload]);
 
-  // City aggregation → Department aggregation → Arrondissement aggregation
+  // City aggregation → Department aggregation → Arrondissement aggregation → Commune aggregations
   const cityAggregates = useMemo(() => aggregateByCities(sessions), [sessions]);
   const departmentData = useMemo(() => aggregateByDepartments(cityAggregates), [cityAggregates]);
   const arrondissementData = useMemo(() => aggregateByArrondissements(cityAggregates), [cityAggregates]);
+
+  // Build the unified communeData Map<deptCode, Map<cityName, CommuneAggregate>>
+  const communeData = useMemo(() => {
+    const map = new Map<string, Map<string, { name: string; shortName: string; cityName: string; totalRestaurants: number; totalOpportunities: number; types: string[]; avgRating: number; hasData: boolean }>>();
+    map.set('94', aggregateByCommunesVDM(cityAggregates));
+    map.set('93', aggregateByCommunesSSD(cityAggregates));
+    map.set('92', aggregateByCommunesHDS(cityAggregates));
+    map.set('91', aggregateByCommunesESS(cityAggregates));
+    map.set('77', aggregateByCommunesSEM(cityAggregates));
+    map.set('78', aggregateByCommunesYVL(cityAggregates));
+    map.set('95', aggregateByCommunesVDO(cityAggregates));
+    return map;
+  }, [cityAggregates]);
 
   // Global stats
   const globalStats = useMemo(() => {
@@ -87,62 +108,31 @@ export default function ScrappingPage() {
   if (!mounted) return <div className="p-8 text-text-dim text-sm">Chargement...</div>;
 
   return (
-    <div className="p-6 space-y-5 fade-in">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-text flex items-center gap-2">
-            <MapPin className="w-5 h-5 text-red" />
-            Scrapping — Île-de-France
-          </h1>
-          <p className="text-xs text-text-muted mt-0.5">Ciblage commercial par département et type de restaurant</p>
+    <div className="h-screen flex flex-col fade-in overflow-hidden">
+      {/* Header compact — masqué quand zoomé */}
+      <div className={`flex-shrink-0 px-6 pt-3 pb-2 flex items-center gap-4 transition-all duration-300 ${mapZoomed ? 'opacity-0 max-h-0 py-0 pt-0 pb-0 overflow-hidden' : 'opacity-100 max-h-20'}`}>
+        <h1 className="text-base font-bold text-text flex items-center gap-2 whitespace-nowrap">
+          <MapPin className="w-4 h-4 text-red" />
+          Scrapping — IDF
+        </h1>
+        <div className="flex items-center gap-1.5 text-[10px]">
+          <span className="glass-interactive px-2 py-1 rounded-md"><span className="text-text-dim">Dép.</span> <span className="font-bold text-red">{globalStats.activeDepts}/8</span></span>
+          <span className="glass-interactive px-2 py-1 rounded-md"><span className="text-text-dim">Villes</span> <span className="font-bold text-blue">{globalStats.totalCities}</span></span>
+          <span className="glass-interactive px-2 py-1 rounded-md"><span className="text-text-dim">Restos</span> <span className="font-bold text-text">{globalStats.totalRestaurants}</span></span>
+          <span className="glass-interactive px-2 py-1 rounded-md"><span className="text-text-dim flex items-center gap-0.5 inline-flex"><TrendingUp className="w-2.5 h-2.5" /> Opp.</span> <span className="font-bold text-red">{globalStats.totalOpportunities}</span></span>
+          <span className="glass-interactive px-2 py-1 rounded-md"><span className="text-text-dim">Sessions</span> <span className="font-bold text-purple">{globalStats.totalSessions}</span></span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 ml-auto">
           <button onClick={reload} className="btn-secondary flex items-center gap-1.5 text-xs" disabled={loading}>
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} /> Rafraîchir
-          </button>
-          <button onClick={openCreate} className="btn-primary flex items-center gap-1.5 text-xs">
-            <Plus className="w-3.5 h-3.5" /> Nouvelle Session
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
           </button>
         </div>
       </div>
 
-      {/* Global Stats */}
-      <div className="grid grid-cols-5 gap-3">
-        <div className="glass-interactive p-3 rounded-xl">
-          <p className="text-[10px] text-text-dim">Départements</p>
-          <p className="text-lg font-bold text-red mt-0.5">{globalStats.activeDepts}<span className="text-[10px] text-text-dim font-normal">/8</span></p>
-        </div>
-        <div className="glass-interactive p-3 rounded-xl">
-          <p className="text-[10px] text-text-dim">Villes</p>
-          <p className="text-lg font-bold text-blue mt-0.5">{globalStats.totalCities}</p>
-        </div>
-        <div className="glass-interactive p-3 rounded-xl">
-          <p className="text-[10px] text-text-dim">Restaurants</p>
-          <p className="text-lg font-bold text-text mt-0.5">{globalStats.totalRestaurants}</p>
-        </div>
-        <div className="glass-interactive p-3 rounded-xl">
-          <p className="text-[10px] text-text-dim flex items-center gap-1"><TrendingUp className="w-3 h-3" /> Opportunités</p>
-          <p className="text-lg font-bold text-red mt-0.5">{globalStats.totalOpportunities}</p>
-        </div>
-        <div className="glass-interactive p-3 rounded-xl">
-          <p className="text-[10px] text-text-dim">Sessions</p>
-          <p className="text-lg font-bold text-purple mt-0.5">{globalStats.totalSessions}</p>
-        </div>
-      </div>
-
-      {/* API Info */}
-      <div className="glass-inset p-3 rounded-xl flex items-center gap-3">
-        <div className="w-2 h-2 rounded-full bg-green animate-pulse" />
-        <p className="text-[11px] text-text-muted">
-          API : <code className="text-blue bg-bg-surface px-1.5 py-0.5 rounded text-[10px]">POST https://reelcrm.vercel.app/api/scraping</code>
-        </p>
-      </div>
-
-      {/* ═══ CARTE IDF — PLEIN ÉCRAN ═══ */}
-      <div className="relative -mx-6 -mb-2">
-        {/* Légende flottante en haut à droite */}
-        <div className="absolute top-4 right-6 z-10 flex items-center gap-4 text-[10px] text-text-dim">
+      {/* ═══ CARTE IDF — REMPLIT TOUT L'ESPACE RESTANT ═══ */}
+      <div className="flex-1 relative min-h-0">
+        {/* Légende flottante en haut à droite — masquée quand zoomé */}
+        <div className={`absolute top-2 right-6 z-10 flex items-center gap-4 text-[10px] text-text-dim transition-opacity duration-300 ${mapZoomed ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
           <span className="flex items-center gap-1.5">
             <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ background: 'rgba(248,113,113,0.5)', boxShadow: '0 0 6px rgba(248,113,113,0.4)' }} />
             Exploré
@@ -153,18 +143,22 @@ export default function ScrappingPage() {
           </span>
         </div>
 
-        {/* Titre flottant en haut à gauche */}
-        <div className="absolute top-4 left-6 z-10">
+        {/* Titre flottant en haut à gauche — masqué quand zoomé */}
+        <div className={`absolute top-2 left-6 z-10 transition-opacity duration-300 ${mapZoomed ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
           <p className="text-[10px] text-text-dim uppercase tracking-[0.15em] font-medium">Île-de-France</p>
           <p className="text-[9px] text-text-dim/50 mt-0.5">Cliquez sur un département pour explorer</p>
         </div>
 
-        {/* Map — libre, sans cadre */}
-        <IleDeFranceMap
-          departmentData={departmentData}
-          onNavigateToCity={handleNavigateToCity}
-          arrondissementData={arrondissementData}
-        />
+        {/* Map — remplit tout l'espace */}
+        <div className="w-full h-full">
+          <IleDeFranceMap
+            departmentData={departmentData}
+            onNavigateToCity={handleNavigateToCity}
+            arrondissementData={arrondissementData}
+            communeData={communeData}
+            onZoomChange={setMapZoomed}
+          />
+        </div>
       </div>
 
       {/* Create Modal */}
