@@ -38,7 +38,7 @@ export default function Sidebar() {
           <Zap className="w-4 h-4 text-white" />
         </div>
         <div>
-          <h1 className="text-[15px] font-bold text-text tracking-tight">Opex<span style={{ background: 'linear-gradient(90deg, #2997FF, #5AC8FA, #64D2FF)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>IA</span></h1>
+          <h1 className="text-[15px] font-bold text-text tracking-tight">Opex<span style={{ background: 'linear-gradient(90deg, #FF3B30, #FF6B6B, #FF453A)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>IA</span></h1>
           <p className="text-[9px] text-text-dim uppercase tracking-[0.15em] font-medium">Business Manager</p>
         </div>
       </div>
